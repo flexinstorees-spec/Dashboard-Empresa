@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { syncLogsTable, offersTable, dailyMetricsTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, ne, sql } from "drizzle-orm";
 import { initMcp, callTool, getTools, resetMcp } from "./mcp-client";
 import { logger } from "./logger";
 
@@ -172,8 +172,9 @@ export async function runSync(): Promise<SyncResult> {
 
     const daysToFetch = 90;
     const today = new Date();
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
 
-    // Build date list
+    // Build date list (today → 90 days ago)
     const dates = Array.from({ length: daysToFetch }, (_, i) => {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
@@ -185,53 +186,59 @@ export async function runSync(): Promise<SyncResult> {
       };
     });
 
-    // Cross-dashboard accumulator for consolidated "ALL" rows
-    const allByDate = new Map<
-      string,
-      { revenue: number; profit: number; expenses: number; sales: number; refunds: number }
-    >();
+    // Throttle: 1100ms between API calls → ~54 req/min (safely under UTMify's 60/min)
+    const THROTTLE_MS = 1100;
 
     for (const dash of dashboards) {
-      const tzOffset = dash.timeZone ?? -3;
-      const enabledMetaIds = enabledMetaAccounts(dash);
-      logger.info({ dashboardId: dash.id, name: dash.name, days: daysToFetch }, "Syncing dashboard");
+      const tzOffset = dash.timeZone ?? -3; // dashboard local offset (e.g. -3 = BRT)
 
-      for (const date of dates) {
+      // ── Delta sync: fetch existing dates for this dashboard from DB ────────
+      // Skip dates already stored UNLESS it's today (always refresh today's data).
+      const existingRows = await db
+        .select({ date: dailyMetricsTable.date })
+        .from(dailyMetricsTable)
+        .where(eq(dailyMetricsTable.offerId, dash.id));
+      const existingDates = new Set(existingRows.map((r) => r.date));
+
+      const datesToFetch = dates.filter((d) => d.str === todayStr || !existingDates.has(d.str));
+      logger.info(
+        { dashboardId: dash.id, name: dash.name, total: dates.length, toFetch: datesToFetch.length },
+        "Syncing dashboard (delta)"
+      );
+
+      for (const date of datesToFetch) {
+        // ── Always throttle BEFORE the call ─────────────────────────────────
+        await new Promise((r) => setTimeout(r, THROTTLE_MS));
+
         const range = dayRange(date.year, date.month, date.day, tzOffset);
 
-        // Fetch with retry on rate-limit (UTMify limits ~60 req/min)
+        // Fetch with one retry on rate-limit
         let summary: UtmSummary | null = null;
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            const args: Record<string, unknown> = {
+            const result = (await callTool("get_dashboard_summary", {
               dashboardId: dash.id,
               dateRange: range,
-            };
-
-            const result = (await callTool("get_dashboard_summary", args)) as UtmSummary;
+            })) as UtmSummary;
 
             if (!result || typeof result !== "object" || (result as Record<string, unknown>).error) {
-              break; // no data for this day — skip
+              break; // no data for this day — skip silently
             }
             summary = result;
             break;
           } catch (err) {
             const msg = err instanceof Error ? err.message : "";
             if (msg.includes("Rate limit") && attempt === 0) {
-              logger.info({ date: date.str, dash: dash.name }, "Rate limit hit — waiting 65s");
+              logger.info({ date: date.str, dash: dash.name }, "Rate limit hit — waiting 65s then retrying");
               await new Promise((r) => setTimeout(r, 65_000));
-              continue; // retry once
+              continue;
             }
             logger.warn({ date: date.str, dash: dash.name, err }, "Failed to fetch day, skipping");
             break;
           }
         }
 
-        if (!summary) {
-          // Throttle even on skipped days to stay under rate limit
-          await new Promise((r) => setTimeout(r, 200));
-          continue;
-        }
+        if (!summary) continue;
 
         const revenue = brl(summary.comissions?.net ?? 0);
         const profit = brl(summary.analytics?.profit ?? 0);
@@ -239,28 +246,31 @@ export async function runSync(): Promise<SyncResult> {
         const sales = summary.ordersCount?.approved ?? 0;
         const refunds = brl(summary.comissions?.refundedGrossRevenue ?? 0);
 
-        // Persist per-dashboard row
         await upsertDay(dash.id, date.str, revenue, profit, expenses, sales, refunds);
-
-        // Accumulate into cross-dashboard totals
-        const prev = allByDate.get(date.str) ?? { revenue: 0, profit: 0, expenses: 0, sales: 0, refunds: 0 };
-        allByDate.set(date.str, {
-          revenue: prev.revenue + revenue,
-          profit: prev.profit + profit,
-          expenses: prev.expenses + expenses,
-          sales: prev.sales + sales,
-          refunds: prev.refunds + refunds,
-        });
-
-        // Throttle between successful calls: ~800ms = ~75 req/min (under 60/min limit)
-        await new Promise((r) => setTimeout(r, 850));
+        logger.debug({ dash: dash.name, date: date.str, revenue, profit, expenses, sales }, "Day upserted");
       }
     }
 
-    // ── 3. Persist consolidated "ALL" rows AFTER processing every dashboard ─
-    for (const [dateStr, totals] of allByDate.entries()) {
-      await upsertDay("ALL", dateStr, totals.revenue, totals.profit, totals.expenses, totals.sales, totals.refunds);
+    // ── 3. Recompute "ALL" from DB (sum every non-ALL offer per date) ───────
+    // This is robust: even if one dashboard was partially synced on a previous
+    // run, ALL will reflect the latest persisted data for ALL offers combined.
+    const allRows = await db
+      .select({
+        date: dailyMetricsTable.date,
+        revenue: sql<number>`SUM(${dailyMetricsTable.revenue})`,
+        profit: sql<number>`SUM(${dailyMetricsTable.profit})`,
+        expenses: sql<number>`SUM(${dailyMetricsTable.expenses})`,
+        sales: sql<number>`SUM(${dailyMetricsTable.sales})`,
+        refunds: sql<number>`SUM(${dailyMetricsTable.refunds})`,
+      })
+      .from(dailyMetricsTable)
+      .where(ne(dailyMetricsTable.offerId, "ALL"))
+      .groupBy(dailyMetricsTable.date);
+
+    for (const row of allRows) {
+      await upsertDay("ALL", row.date, Number(row.revenue), Number(row.profit), Number(row.expenses), Number(row.sales), Number(row.refunds));
     }
+    logger.info({ datesRebuilt: allRows.length }, "ALL rows recomputed from DB");
 
     // ── 4. Log success ──────────────────────────────────────────────────────
     const msg = `${offersCount} dashboard${offersCount !== 1 ? "s" : ""} sincronizado${offersCount !== 1 ? "s" : ""} (últimos ${daysToFetch} dias)`;
