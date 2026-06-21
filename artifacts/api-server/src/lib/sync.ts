@@ -1,10 +1,103 @@
 import { db } from "@workspace/db";
 import { syncLogsTable, offersTable, dailyMetricsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-import { initializeMcp, callMcpTool, getAvailableTools, resetSession } from "./mcp-client";
+import { eq, and, desc } from "drizzle-orm";
+import { initMcp, callTool, getTools, resetMcp } from "./mcp-client";
 import { logger } from "./logger";
 
-let isSyncing = false;
+// ─── Types returned by UTMify MCP ──────────────────────────────────────────
+
+interface UtmDashboard {
+  id: string;
+  name: string;
+  timeZone: number; // e.g. -3
+  metaProfiles?: Array<{
+    adAccounts?: Array<{ id: string; enabled: boolean }>;
+  }>;
+}
+
+interface UtmSummary {
+  ordersCount: {
+    approved: number;
+    refunded: number;
+  };
+  comissions: {
+    net: number;                  // net revenue in centavos
+    refundedGrossRevenue: number; // refunded amount in centavos
+  };
+  ads: {
+    spent: number; // ad spend in centavos
+  };
+  analytics: {
+    profit: number; // net profit in centavos
+    roi: number;
+    avgTicket: number; // centavos
+  };
+}
+
+// ─── State ──────────────────────────────────────────────────────────────────
+
+let _syncing = false;
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function toIso(d: Date, offsetHours: number): string {
+  const sign = offsetHours >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetHours);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(abs)}:00`;
+}
+
+function dayRange(year: number, month: number, day: number, tzOffset: number) {
+  const from = new Date(year, month, day, 0, 0, 0);
+  const to = new Date(year, month, day, 23, 59, 59);
+  return { from: toIso(from, tzOffset), to: toIso(to, tzOffset) };
+}
+
+function brl(centavos: number): number {
+  return (centavos ?? 0) / 100;
+}
+
+async function upsertDay(
+  offerId: string,
+  dateStr: string,
+  revenue: number,
+  profit: number,
+  expenses: number,
+  sales: number,
+  refunds: number
+): Promise<void> {
+  const existing = await db
+    .select({ id: dailyMetricsTable.id })
+    .from(dailyMetricsTable)
+    .where(and(eq(dailyMetricsTable.offerId, offerId), eq(dailyMetricsTable.date, dateStr)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(dailyMetricsTable)
+      .set({ revenue, profit, expenses, sales, refunds, updatedAt: new Date() })
+      .where(eq(dailyMetricsTable.id, existing[0].id));
+  } else {
+    await db
+      .insert(dailyMetricsTable)
+      .values({ offerId, date: dateStr, revenue, profit, expenses, sales, refunds });
+  }
+}
+
+function enabledMetaAccounts(dash: UtmDashboard): string[] {
+  const ids: string[] = [];
+  for (const profile of dash.metaProfiles ?? []) {
+    for (const acc of profile.adAccounts ?? []) {
+      if (acc.enabled) ids.push(acc.id);
+    }
+  }
+  return ids;
+}
+
+// ─── Public API ─────────────────────────────────────────────────────────────
 
 export interface SyncResult {
   status: "idle" | "syncing" | "success" | "error";
@@ -17,7 +110,7 @@ export async function getLastSyncStatus(): Promise<SyncResult> {
   const rows = await db
     .select()
     .from(syncLogsTable)
-    .orderBy(syncLogsTable.createdAt)
+    .orderBy(desc(syncLogsTable.createdAt)) // most recent first
     .limit(1);
 
   if (rows.length === 0) {
@@ -33,201 +126,154 @@ export async function getLastSyncStatus(): Promise<SyncResult> {
   };
 }
 
-function parseDateString(d: string): string {
-  // Ensure YYYY-MM-DD format
-  return d.substring(0, 10);
-}
-
-function extractNumber(val: unknown): number {
-  if (typeof val === "number") return val;
-  if (typeof val === "string") return parseFloat(val.replace(",", ".")) || 0;
-  return 0;
-}
-
-async function persistMetrics(offerId: string, dailyData: Array<Record<string, unknown>>): Promise<void> {
-  for (const day of dailyData) {
-    const dateStr = parseDateString(String(day.date || day.day || ""));
-    if (!dateStr || dateStr === "") continue;
-
-    const existing = await db
-      .select({ id: dailyMetricsTable.id })
-      .from(dailyMetricsTable)
-      .where(and(eq(dailyMetricsTable.offerId, offerId), eq(dailyMetricsTable.date, dateStr)))
-      .limit(1);
-
-    const metrics = {
-      offerId,
-      date: dateStr,
-      revenue: extractNumber(day.revenue ?? day.receita ?? day.gross ?? 0),
-      profit: extractNumber(day.profit ?? day.lucro ?? 0),
-      expenses: extractNumber(day.expenses ?? day.gasto ?? day.spend ?? 0),
-      sales: Math.round(extractNumber(day.sales ?? day.vendas ?? day.conversions ?? 0)),
-      refunds: extractNumber(day.refunds ?? day.reembolsos ?? 0),
-    };
-
-    if (existing.length > 0) {
-      await db
-        .update(dailyMetricsTable)
-        .set({ ...metrics, updatedAt: new Date() })
-        .where(eq(dailyMetricsTable.id, existing[0].id));
-    } else {
-      await db.insert(dailyMetricsTable).values(metrics);
-    }
-  }
-}
-
 export async function runSync(): Promise<SyncResult> {
-  if (isSyncing) {
-    return { status: "syncing", lastSyncAt: null, offersCount: 0, message: "Sincronização em andamento..." };
+  if (_syncing) {
+    return { status: "syncing", lastSyncAt: null, offersCount: 0, message: "Sincronização já em andamento..." };
   }
 
-  isSyncing = true;
+  _syncing = true;
   let offersCount = 0;
 
   try {
-    // Reset and initialize MCP session
-    resetSession();
-    await initializeMcp();
+    resetMcp();
+    await initMcp();
 
-    const tools = await getAvailableTools();
-    logger.info({ toolCount: tools.length, tools: tools.map((t) => t.name) }, "MCP tools discovered");
+    const tools = getTools();
+    const toolNames = tools.map((t) => t.name);
+    logger.info({ toolCount: tools.length, tools: toolNames }, "MCP tools discovered");
 
-    // Find tools related to products/offers
-    const productTools = tools.filter((t) =>
-      t.name.match(/product|offer|gp|list|get.*product/i)
-    );
-    const statsTools = tools.filter((t) =>
-      t.name.match(/stat|metric|revenue|profit|gs|gm|gr|gwe|ga/i)
-    );
-
-    logger.info({ productTools: productTools.map((t) => t.name), statsTools: statsTools.map((t) => t.name) }, "Relevant tools");
-
-    // Try to get products/offers list
-    let offers: Array<{ id: string; name: string }> = [];
-
-    for (const tool of productTools.slice(0, 3)) {
-      try {
-        const result = (await callMcpTool(tool.name)) as unknown;
-        const data = Array.isArray(result) ? result : (result as Record<string, unknown>)?.data ?? (result as Record<string, unknown>)?.offers ?? (result as Record<string, unknown>)?.products ?? [];
-        if (Array.isArray(data) && data.length > 0) {
-          offers = (data as Array<Record<string, unknown>>).map((item: Record<string, unknown>) => ({
-            id: String(item.id ?? item.offer_id ?? item.product_id ?? Math.random()),
-            name: String(item.name ?? item.title ?? item.product_name ?? "Oferta"),
-          }));
-          break;
-        }
-      } catch (e) {
-        logger.warn({ tool: tool.name, error: e }, "Tool call failed");
-      }
+    // ── 1. List dashboards ──────────────────────────────────────────────────
+    if (!toolNames.includes("get_dashboards")) {
+      throw new Error("Ferramenta get_dashboards não disponível no MCP");
     }
 
-    // If no offers found from product tools, use all tools to discover offers
-    if (offers.length === 0) {
-      for (const tool of tools.slice(0, 5)) {
-        try {
-          const result = (await callMcpTool(tool.name)) as unknown;
-          const arr = Array.isArray(result) ? result : [];
-          if (arr.length > 0 && (arr[0] as Record<string, unknown>).id) {
-            offers = arr.map((item: unknown) => {
-              const i = item as Record<string, unknown>;
-              return { id: String(i.id ?? Math.random()), name: String(i.name ?? i.title ?? "Oferta") };
-            });
-            break;
-          }
-        } catch {}
-      }
+    const dashboards = (await callTool("get_dashboards")) as UtmDashboard[];
+    if (!Array.isArray(dashboards) || dashboards.length === 0) {
+      throw new Error("Nenhum dashboard encontrado no MCP");
     }
 
-    // Upsert offers in DB
-    for (const offer of offers) {
+    logger.info({ dashboards: dashboards.map((d) => ({ id: d.id, name: d.name })) }, "Dashboards found");
+    offersCount = dashboards.length;
+
+    for (const dash of dashboards) {
       await db
         .insert(offersTable)
-        .values({ id: offer.id, name: offer.name })
+        .values({ id: dash.id, name: dash.name })
         .onConflictDoUpdate({
           target: offersTable.id,
-          set: { name: offer.name, lastSyncAt: new Date() },
+          set: { name: dash.name, lastSyncAt: new Date() },
         });
     }
-    offersCount = offers.length;
 
-    // Fetch daily stats for each offer and consolidated
-    for (const tool of statsTools.slice(0, 3)) {
-      try {
-        const result = (await callMcpTool(tool.name)) as unknown;
-        const data = result as Record<string, unknown>;
+    // ── 2. Fetch daily metrics per dashboard ────────────────────────────────
+    if (!toolNames.includes("get_dashboard_summary")) {
+      throw new Error("Ferramenta get_dashboard_summary não disponível no MCP");
+    }
 
-        // Check for consolidated daily data
-        const daily = data?.daily ?? data?.days ?? data?.data ?? [];
-        if (Array.isArray(daily) && daily.length > 0) {
-          await persistMetrics("ALL", daily as Array<Record<string, unknown>>);
-        }
+    const daysToFetch = 90;
+    const today = new Date();
 
-        // Check for per-offer data
-        const offerData = data?.offers ?? data?.products ?? [];
-        if (Array.isArray(offerData)) {
-          for (const od of offerData as Array<Record<string, unknown>>) {
-            const oid = String(od.id ?? od.offer_id ?? "");
-            const odDaily = (od.daily ?? od.days ?? []) as Array<Record<string, unknown>>;
-            if (oid && odDaily.length > 0) {
-              await persistMetrics(oid, odDaily);
+    // Build date list
+    const dates = Array.from({ length: daysToFetch }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      return {
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        day: d.getDate(),
+        str: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      };
+    });
+
+    // Cross-dashboard accumulator for consolidated "ALL" rows
+    const allByDate = new Map<
+      string,
+      { revenue: number; profit: number; expenses: number; sales: number; refunds: number }
+    >();
+
+    for (const dash of dashboards) {
+      const tzOffset = dash.timeZone ?? -3;
+      const enabledMetaIds = enabledMetaAccounts(dash);
+      logger.info({ dashboardId: dash.id, name: dash.name, days: daysToFetch }, "Syncing dashboard");
+
+      for (const date of dates) {
+        const range = dayRange(date.year, date.month, date.day, tzOffset);
+
+        // Fetch with retry on rate-limit (UTMify limits ~60 req/min)
+        let summary: UtmSummary | null = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const args: Record<string, unknown> = {
+              dashboardId: dash.id,
+              dateRange: range,
+            };
+
+            const result = (await callTool("get_dashboard_summary", args)) as UtmSummary;
+
+            if (!result || typeof result !== "object" || (result as Record<string, unknown>).error) {
+              break; // no data for this day — skip
             }
+            summary = result;
+            break;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "";
+            if (msg.includes("Rate limit") && attempt === 0) {
+              logger.info({ date: date.str, dash: dash.name }, "Rate limit hit — waiting 65s");
+              await new Promise((r) => setTimeout(r, 65_000));
+              continue; // retry once
+            }
+            logger.warn({ date: date.str, dash: dash.name, err }, "Failed to fetch day, skipping");
+            break;
           }
         }
-      } catch (e) {
-        logger.warn({ tool: tool.name, error: e }, "Stats tool failed");
+
+        if (!summary) {
+          // Throttle even on skipped days to stay under rate limit
+          await new Promise((r) => setTimeout(r, 200));
+          continue;
+        }
+
+        const revenue = brl(summary.comissions?.net ?? 0);
+        const profit = brl(summary.analytics?.profit ?? 0);
+        const expenses = brl(summary.ads?.spent ?? 0);
+        const sales = summary.ordersCount?.approved ?? 0;
+        const refunds = brl(summary.comissions?.refundedGrossRevenue ?? 0);
+
+        // Persist per-dashboard row
+        await upsertDay(dash.id, date.str, revenue, profit, expenses, sales, refunds);
+
+        // Accumulate into cross-dashboard totals
+        const prev = allByDate.get(date.str) ?? { revenue: 0, profit: 0, expenses: 0, sales: 0, refunds: 0 };
+        allByDate.set(date.str, {
+          revenue: prev.revenue + revenue,
+          profit: prev.profit + profit,
+          expenses: prev.expenses + expenses,
+          sales: prev.sales + sales,
+          refunds: prev.refunds + refunds,
+        });
+
+        // Throttle between successful calls: ~800ms = ~75 req/min (under 60/min limit)
+        await new Promise((r) => setTimeout(r, 850));
       }
     }
 
-    // Try specific UTMify-style tools
-    const specificTools = [
-      { name: "gs", offerId: "ALL" },
-      { name: "gr", offerId: "ALL" },
-      { name: "gm", offerId: "ALL" },
-    ];
-
-    for (const { name, offerId } of specificTools) {
-      const tool = tools.find((t) => t.name === name || t.name.includes(name));
-      if (!tool) continue;
-      try {
-        const result = (await callMcpTool(tool.name)) as unknown;
-        const data = result as Record<string, unknown>;
-        const daily = data?.daily ?? data?.days ?? data?.evolution ?? [];
-        if (Array.isArray(daily) && daily.length > 0) {
-          await persistMetrics(offerId, daily as Array<Record<string, unknown>>);
-        }
-      } catch {}
+    // ── 3. Persist consolidated "ALL" rows AFTER processing every dashboard ─
+    for (const [dateStr, totals] of allByDate.entries()) {
+      await upsertDay("ALL", dateStr, totals.revenue, totals.profit, totals.expenses, totals.sales, totals.refunds);
     }
 
-    // Log success
-    await db.insert(syncLogsTable).values({
-      status: "success",
-      message: `${offersCount} ofertas sincronizadas com sucesso`,
-      offersCount,
-    });
+    // ── 4. Log success ──────────────────────────────────────────────────────
+    const msg = `${offersCount} dashboard${offersCount !== 1 ? "s" : ""} sincronizado${offersCount !== 1 ? "s" : ""} (últimos ${daysToFetch} dias)`;
+    await db.insert(syncLogsTable).values({ status: "success", message: msg, offersCount });
+    logger.info({ offersCount, msg }, "Sync completed");
 
-    return {
-      status: "success",
-      lastSyncAt: new Date().toISOString(),
-      offersCount,
-      message: `${offersCount} ofertas sincronizadas com sucesso`,
-    };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : "Erro desconhecido";
-    logger.error({ error }, "Sync failed");
-
-    await db.insert(syncLogsTable).values({
-      status: "error",
-      message: `Erro na sincronização: ${msg}`,
-      offersCount,
-    });
-
-    return {
-      status: "error",
-      lastSyncAt: new Date().toISOString(),
-      offersCount,
-      message: `Erro na sincronização: ${msg}`,
-    };
+    return { status: "success", lastSyncAt: new Date().toISOString(), offersCount, message: msg };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+    logger.error({ err }, "Sync failed");
+    await db.insert(syncLogsTable).values({ status: "error", message: `Erro: ${msg}`, offersCount });
+    return { status: "error", lastSyncAt: new Date().toISOString(), offersCount, message: `Erro: ${msg}` };
   } finally {
-    isSyncing = false;
+    _syncing = false;
   }
 }

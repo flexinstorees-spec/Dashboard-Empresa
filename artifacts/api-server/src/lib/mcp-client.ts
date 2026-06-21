@@ -1,4 +1,15 @@
-const MCP_URL = "https://mcp.utmify.com.br/mcp/?token=KRgMLjM0vnaJgytQQPTvOIUt0Q1m53xZ&resources=gs,gm,gu,gwe,ga,gp,gwa,gr,gtf,gpc,gcs";
+const MCP_URL =
+  "https://mcp.utmify.com.br/mcp/?token=ZEA89kPSvH34XRodkB1GgEjjMfJQGdc9&resources=gs,gm,gu,gwe,ga,gp,gwa,gr,gtf,gpc,gcs";
+
+// UTMify MCP uses the MCP 2024-11-05 protocol over plain HTTP (not SSE).
+// Required: Accept: application/json, text/event-stream (even though response is plain JSON).
+
+interface McpJsonRpcResponse<T = unknown> {
+  jsonrpc: string;
+  id: number | string | null;
+  result?: T;
+  error?: { code: number; message: string; data?: unknown };
+}
 
 interface McpTool {
   name: string;
@@ -11,25 +22,25 @@ interface McpCallResult {
   isError?: boolean;
 }
 
-interface McpJsonRpcResponse<T = unknown> {
-  jsonrpc: string;
-  id: number | string;
-  result?: T;
-  error?: { code: number; message: string; data?: unknown };
-}
+let _sessionId: string | null = null;
+let _tools: McpTool[] = [];
+let _initialized = false;
 
-let sessionId: string | null = null;
-let availableTools: McpTool[] = [];
-let toolsInitialized = false;
+async function rpc<T = unknown>(
+  method: string,
+  params?: Record<string, unknown>,
+  id?: number
+): Promise<McpJsonRpcResponse<T>> {
+  const body: Record<string, unknown> = { jsonrpc: "2.0", method };
+  if (id !== undefined) body.id = id;
+  if (params !== undefined) body.params = params;
 
-async function mcpPost<T = unknown>(body: Record<string, unknown>): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    // UTMify requires both media types in Accept header
     Accept: "application/json, text/event-stream",
   };
-  if (sessionId) {
-    headers["mcp-session-id"] = sessionId;
-  }
+  if (_sessionId) headers["mcp-session-id"] = _sessionId;
 
   const res = await fetch(MCP_URL, {
     method: "POST",
@@ -37,100 +48,81 @@ async function mcpPost<T = unknown>(body: Record<string, unknown>): Promise<T> {
     body: JSON.stringify(body),
   });
 
-  const newSession = res.headers.get("mcp-session-id");
-  if (newSession) {
-    sessionId = newSession;
-  }
+  // Capture session id if server sets one
+  const sid = res.headers.get("mcp-session-id");
+  if (sid) _sessionId = sid;
 
   const text = await res.text();
-
-  // Handle SSE-style response (data: {...})
-  if (text.startsWith("data:")) {
-    const lines = text.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("data:")) {
-        const json = line.slice(5).trim();
-        if (json && json !== "[DONE]") {
-          return JSON.parse(json) as T;
-        }
-      }
-    }
-    throw new Error("No data in SSE response");
+  if (!text || text.trim() === "") {
+    return { jsonrpc: "2.0", id: id ?? null };
   }
 
-  return JSON.parse(text) as T;
+  return JSON.parse(text) as McpJsonRpcResponse<T>;
 }
 
-export async function initializeMcp(): Promise<void> {
-  if (toolsInitialized) return;
+export async function initMcp(): Promise<void> {
+  if (_initialized) return;
 
-  const initResp = await mcpPost<McpJsonRpcResponse<{ sessionId?: string; protocolVersion?: string }>>({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
+  const initResp = await rpc<{ protocolVersion: string }>(
+    "initialize",
+    {
       protocolVersion: "2024-11-05",
       capabilities: {},
       clientInfo: { name: "painel-financeiro", version: "1.0.0" },
     },
-  });
+    1
+  );
 
-  if (initResp.result?.sessionId) {
-    sessionId = initResp.result.sessionId;
+  if (initResp.error) {
+    throw new Error(`MCP init failed: ${initResp.error.message}`);
   }
 
-  // Send initialized notification
-  await mcpPost({
-    jsonrpc: "2.0",
-    method: "notifications/initialized",
-  }).catch(() => null);
+  // Acknowledge initialization (notification — no id, no response expected)
+  await rpc("notifications/initialized").catch(() => null);
 
-  // List tools
-  const toolsResp = await mcpPost<McpJsonRpcResponse<{ tools: McpTool[] }>>({
-    jsonrpc: "2.0",
-    id: 2,
-    method: "tools/list",
-  });
-
-  availableTools = toolsResp.result?.tools ?? [];
-  toolsInitialized = true;
+  // Fetch available tools
+  const toolsResp = await rpc<{ tools: McpTool[] }>("tools/list", {}, 2);
+  if (toolsResp.error) {
+    throw new Error(`MCP tools/list failed: ${toolsResp.error.message}`);
+  }
+  _tools = toolsResp.result?.tools ?? [];
+  _initialized = true;
 }
 
-export async function callMcpTool(name: string, args: Record<string, unknown> = {}): Promise<unknown> {
-  const resp = await mcpPost<McpJsonRpcResponse<McpCallResult>>({
-    jsonrpc: "2.0",
-    id: Math.random(),
-    method: "tools/call",
-    params: { name, arguments: args },
-  });
+export function getTools(): McpTool[] {
+  return _tools;
+}
+
+export async function callTool(
+  name: string,
+  args: Record<string, unknown> = {}
+): Promise<unknown> {
+  const resp = await rpc<McpCallResult>(
+    "tools/call",
+    { name, arguments: args },
+    Math.floor(Math.random() * 9000) + 1000
+  );
 
   if (resp.error) {
-    throw new Error(`MCP tool error: ${resp.error.message}`);
+    throw new Error(`MCP tool "${name}" error: ${resp.error.message}`);
+  }
+  if (resp.result?.isError) {
+    const txt = resp.result.content?.find((c) => c.type === "text")?.text ?? "Tool error";
+    throw new Error(`MCP tool "${name}" returned error: ${txt}`);
   }
 
-  const content = resp.result?.content ?? [];
-  const textContent = content.find((c) => c.type === "text")?.text;
-  if (textContent) {
-    try {
-      return JSON.parse(textContent);
-    } catch {
-      return textContent;
-    }
+  const textContent = resp.result?.content?.find((c) => c.type === "text")?.text;
+  if (!textContent) return null;
+
+  try {
+    return JSON.parse(textContent);
+  } catch {
+    return textContent;
   }
-  return resp.result;
 }
 
-export async function getAvailableTools(): Promise<McpTool[]> {
-  await initializeMcp();
-  return availableTools;
-}
-
-export function hasToolInitialized(): boolean {
-  return toolsInitialized;
-}
-
-export function resetSession(): void {
-  sessionId = null;
-  toolsInitialized = false;
-  availableTools = [];
+export function resetMcp(): void {
+  _sessionId = null;
+  _tools = [];
+  _initialized = false;
 }
