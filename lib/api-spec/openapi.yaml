@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Painel Financeiro API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: overview
+    description: Consolidated financial overview
+  - name: performance
+    description: Daily performance metrics
+  - name: offers
+    description: Individual offer data
+  - name: cashflow
+    description: Cash flow data
+  - name: sync
+    description: MCP sync operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,255 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /overview:
+    get:
+      operationId: getOverview
+      tags: [overview]
+      summary: Get consolidated financial overview
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, yesterday, last7days, last30days, thismonth, lastmonth]
+            default: today
+        - name: startDate
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: endDate
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Overview metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverviewMetrics"
+
+  /performance:
+    get:
+      operationId: getPerformance
+      tags: [performance]
+      summary: Get daily performance data for charts
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [last7days, last30days, last90days, thismonth, lastmonth]
+            default: last30days
+        - name: startDate
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: endDate
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Daily performance data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceData"
+
+  /offers:
+    get:
+      operationId: getOffers
+      tags: [offers]
+      summary: Get all offers with aggregated metrics
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, yesterday, last7days, last30days, thismonth, lastmonth]
+            default: last30days
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [profit, revenue, roi, sales]
+            default: profit
+        - name: startDate
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: endDate
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+
+  /offers/{offerId}:
+    get:
+      operationId: fetchOffer
+      tags: [offers]
+      summary: Get a single offer with detailed metrics
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, yesterday, last7days, last30days, thismonth, lastmonth]
+            default: last30days
+        - name: startDate
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: endDate
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Offer details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferDetail"
+        "404":
+          description: Offer not found
+
+  /offers/{offerId}/performance:
+    get:
+      operationId: fetchOfferPerformance
+      tags: [offers]
+      summary: Get daily performance data for a specific offer
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [last7days, last30days, last90days, thismonth, lastmonth]
+            default: last30days
+        - name: startDate
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: endDate
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Offer daily performance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerformanceData"
+
+  /comparison:
+    get:
+      operationId: getComparison
+      tags: [offers]
+      summary: Compare multiple offers side by side
+      parameters:
+        - name: offerIds
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated offer IDs
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, yesterday, last7days, last30days, thismonth, lastmonth]
+            default: last30days
+        - name: startDate
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: endDate
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Comparison data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComparisonData"
+
+  /cashflow:
+    get:
+      operationId: getCashflow
+      tags: [cashflow]
+      summary: Get cumulative cash flow data over time
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [last7days, last30days, last90days, thismonth, lastmonth]
+            default: last30days
+        - name: startDate
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: endDate
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Cash flow data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashflowData"
+
+  /sync/status:
+    get:
+      operationId: getSyncStatus
+      tags: [sync]
+      summary: Get MCP sync status
+      responses:
+        "200":
+          description: Sync status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatus"
+
+  /sync:
+    post:
+      operationId: triggerSync
+      tags: [sync]
+      summary: Trigger manual MCP data sync
+      responses:
+        "200":
+          description: Sync triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatus"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +291,284 @@ components:
       required:
         - status
 
+    OverviewMetrics:
+      type: object
+      required:
+        - totalRevenue
+        - totalProfit
+        - totalExpenses
+        - roi
+        - totalSales
+        - avgTicket
+        - totalRefunds
+        - todayRevenue
+        - todayProfit
+        - todayExpenses
+        - todaySales
+        - period
+        - comparisonPrevious
+      properties:
+        totalRevenue:
+          type: number
+        totalProfit:
+          type: number
+        totalExpenses:
+          type: number
+        roi:
+          type: number
+        totalSales:
+          type: integer
+        avgTicket:
+          type: number
+        totalRefunds:
+          type: number
+        todayRevenue:
+          type: number
+        todayProfit:
+          type: number
+        todayExpenses:
+          type: number
+        todaySales:
+          type: integer
+        period:
+          type: string
+        comparisonPrevious:
+          $ref: "#/components/schemas/ComparisonPeriod"
+
+    ComparisonPeriod:
+      type: object
+      required:
+        - revenueChange
+        - profitChange
+        - expensesChange
+        - salesChange
+      properties:
+        revenueChange:
+          type: number
+        profitChange:
+          type: number
+        expensesChange:
+          type: number
+        salesChange:
+          type: number
+
+    DailyMetric:
+      type: object
+      required:
+        - date
+        - revenue
+        - profit
+        - expenses
+        - sales
+      properties:
+        date:
+          type: string
+        revenue:
+          type: number
+        profit:
+          type: number
+        expenses:
+          type: number
+        sales:
+          type: integer
+
+    PerformanceData:
+      type: object
+      required:
+        - daily
+        - avgRevenue
+        - avgProfit
+        - avgExpenses
+        - period
+      properties:
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyMetric"
+        avgRevenue:
+          type: number
+        avgProfit:
+          type: number
+        avgExpenses:
+          type: number
+        period:
+          type: string
+
+    Offer:
+      type: object
+      required:
+        - id
+        - name
+        - revenue
+        - profit
+        - expenses
+        - roi
+        - sales
+        - avgTicket
+        - refunds
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        revenue:
+          type: number
+        profit:
+          type: number
+        expenses:
+          type: number
+        roi:
+          type: number
+        sales:
+          type: integer
+        avgTicket:
+          type: number
+        refunds:
+          type: number
+
+    OfferDetail:
+      type: object
+      required:
+        - id
+        - name
+        - revenue
+        - profit
+        - expenses
+        - roi
+        - sales
+        - avgTicket
+        - refunds
+        - daily
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        revenue:
+          type: number
+        profit:
+          type: number
+        expenses:
+          type: number
+        roi:
+          type: number
+        sales:
+          type: integer
+        avgTicket:
+          type: number
+        refunds:
+          type: number
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyMetric"
+
+    ComparisonOffer:
+      type: object
+      required:
+        - id
+        - name
+        - revenue
+        - profit
+        - roi
+        - sales
+        - avgTicket
+        - daily
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        revenue:
+          type: number
+        profit:
+          type: number
+        roi:
+          type: number
+        sales:
+          type: integer
+        avgTicket:
+          type: number
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyMetric"
+
+    ComparisonData:
+      type: object
+      required:
+        - offers
+        - period
+      properties:
+        offers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComparisonOffer"
+        period:
+          type: string
+
+    CashflowEntry:
+      type: object
+      required:
+        - date
+        - cumulativeRevenue
+        - cumulativeExpenses
+        - cumulativeProfit
+        - dailyRevenue
+        - dailyExpenses
+        - dailyProfit
+      properties:
+        date:
+          type: string
+        cumulativeRevenue:
+          type: number
+        cumulativeExpenses:
+          type: number
+        cumulativeProfit:
+          type: number
+        dailyRevenue:
+          type: number
+        dailyExpenses:
+          type: number
+        dailyProfit:
+          type: number
+
+    CashflowData:
+      type: object
+      required:
+        - entries
+        - totalRevenue
+        - totalExpenses
+        - totalProfit
+        - period
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CashflowEntry"
+        totalRevenue:
+          type: number
+        totalExpenses:
+          type: number
+        totalProfit:
+          type: number
+        period:
+          type: string
+
+    SyncStatus:
+      type: object
+      required:
+        - status
+        - lastSyncAt
+        - offersCount
+        - message
+      properties:
+        status:
+          type: string
+          enum: [idle, syncing, success, error]
+        lastSyncAt:
+          type: ["string", "null"]
+        offersCount:
+          type: integer
+        message:
+          type: string

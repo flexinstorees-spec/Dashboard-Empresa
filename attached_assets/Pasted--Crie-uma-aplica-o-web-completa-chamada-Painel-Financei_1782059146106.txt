@@ -1,0 +1,295 @@
+
+Crie uma aplicação web completa chamada Painel Financeiro, focada em consolidar os dados financeiros de todas as minhas ofertas em uma única visão.
+
+O principal objetivo é resolver uma limitação da UTMify: atualmente cada oferta possui seus próprios dados, mas não existe uma visão consolidada da empresa inteira.
+
+O sistema deve conectar-se ao MCP da UTMify, buscar os dados reais e gerar automaticamente métricas globais do negócio.
+
+⸻
+
+MCP (OBRIGATÓRIO)
+
+Vou fornecer abaixo o link/configuração do MCP.
+
+Utilize este MCP como fonte principal de dados da aplicação.
+
+LINK/CONFIGURAÇÃO MCP:
+
+https://mcp.utmify.com.br/mcp/?token=KRgMLjM0vnaJgytQQPTvOIUt0Q1m53xZ&resources=gs,gm,gu,gwe,ga,gp,gwa,gr,gtf,gpc,gcs
+
+⸻
+
+REQUISITOS DA INTEGRAÇÃO
+
+O sistema deve:
+
+* Conectar automaticamente ao MCP
+* Descobrir e utilizar as ferramentas disponíveis
+* Buscar dados reais diretamente do MCP
+* Não utilizar dados fictícios ou simulados quando houver conexão disponível
+* Atualizar os dados automaticamente
+* Tratar erros de conexão
+* Exibir status da sincronização
+* Salvar histórico das métricas no banco de dados
+* Detectar automaticamente novas ofertas adicionadas futuramente sem necessidade de alterar código
+
+⸻
+
+OBJETIVO PRINCIPAL
+
+Criar uma visão consolidada da empresa.
+
+O dashboard deve calcular automaticamente:
+
+* Receita Total da Empresa
+* Lucro Total da Empresa
+* Gasto Total da Empresa
+* ROI Geral
+* Quantidade Total de Vendas
+* Ticket Médio Geral
+* Total de Reembolsos
+* Evolução diária do lucro
+* Evolução diária da receita
+* Evolução diária dos gastos
+
+Todas essas métricas devem considerar a soma de todas as ofertas encontradas no MCP.
+
+⸻
+
+TECNOLOGIAS
+
+Utilizar:
+
+* Next.js
+* TypeScript
+* Tailwind CSS
+* Shadcn UI
+* Recharts
+* PostgreSQL
+
+Estruturar o projeto de forma profissional e escalável.
+
+⸻
+
+DESIGN
+
+Criar um visual moderno semelhante aos melhores dashboards SaaS.
+
+Características:
+
+* Limpo
+* Minimalista
+* Profissional
+* Fácil de entender em poucos segundos
+* Pouca poluição visual
+* Foco em métricas
+
+Utilizar:
+
+* Cards grandes
+* Bordas suaves
+* Sombras discretas
+* Excelente espaçamento
+* Ícones modernos
+
+Cores:
+
+* Verde para lucro
+* Vermelho para queda ou prejuízo
+* Azul para métricas neutras
+
+Suporte a:
+
+* Tema claro
+* Tema escuro
+
+⸻
+
+MOBILE FIRST
+
+O sistema será utilizado principalmente pelo celular.
+
+Portanto:
+
+* Desenvolver primeiro para smartphones
+* Interface totalmente responsiva
+* Navegação simples
+* Gráficos adaptáveis
+* Botões grandes
+* Excelente experiência em telas pequenas
+
+No celular:
+
+* Cards empilhados
+* Gráficos ajustáveis
+* Menu inferior fixo
+* Navegação intuitiva
+
+⸻
+
+TELA 1 — VISÃO GERAL
+
+Exibir imediatamente:
+
+* Receita Total
+* Lucro Total
+* Gasto Total
+* ROI Geral
+
+Essas quatro métricas devem aparecer no topo em destaque.
+
+Abaixo exibir:
+
+* Receita Hoje
+* Lucro Hoje
+* Gasto Hoje
+* Vendas Hoje
+
+Criar filtros rápidos:
+
+* Hoje
+* Ontem
+* Últimos 7 dias
+* Últimos 30 dias
+* Este mês
+* Mês passado
+* Período personalizado
+
+⸻
+
+TELA 2 — DESEMPENHO
+
+Criar gráficos para:
+
+* Receita por dia
+* Lucro por dia
+* Gastos por dia
+
+Permitir alternar períodos.
+
+Mostrar comparação percentual entre períodos.
+
+Exemplo:
+
+Lucro Hoje vs Média dos Últimos 7 Dias
+
+Receita Hoje vs Média dos Últimos 7 Dias
+
+Gasto Hoje vs Média dos Últimos 7 Dias
+
+⸻
+
+TELA 3 — OFERTAS
+
+Listar todas as ofertas encontradas automaticamente no MCP.
+
+Exibir para cada oferta:
+
+* Nome
+* Receita
+* Lucro
+* Gastos
+* ROI
+* Quantidade de vendas
+* Ticket médio
+* Reembolsos
+
+Permitir ordenar por:
+
+* Maior lucro
+* Maior receita
+* Maior ROI
+* Mais vendas
+
+⸻
+
+TELA 4 — DETALHES DA OFERTA
+
+Ao clicar em uma oferta exibir:
+
+* Receita Total
+* Lucro Total
+* Gastos Totais
+* ROI
+* Ticket Médio
+* Vendas
+* Reembolsos
+
+Exibir gráficos históricos da oferta.
+
+⸻
+
+TELA 5 — COMPARAÇÃO
+
+Permitir selecionar múltiplas ofertas.
+
+Comparar:
+
+* Receita
+* Lucro
+* ROI
+* Vendas
+* Ticket Médio
+
+Exibir gráficos comparativos.
+
+⸻
+
+TELA 6 — FLUXO DE CAIXA
+
+Mostrar:
+
+* Receita acumulada
+* Gastos acumulados
+* Lucro acumulado
+
+Criar gráfico de evolução financeira ao longo do tempo.
+
+⸻
+
+CÁLCULOS
+
+Sempre que os dados estiverem disponíveis no MCP:
+
+Receita Total = soma da receita de todas as ofertas
+
+Lucro Total = soma do lucro de todas as ofertas
+
+ROI Geral = lucro total ÷ gasto total
+
+Ticket Médio = receita total ÷ quantidade de vendas
+
+Todos os demais cálculos devem utilizar os dados reais retornados pelo MCP.
+
+Taxas, reembolsos e demais métricas devem ser importados automaticamente quando estiverem disponíveis.
+
+⸻
+
+EXPERIÊNCIA DO USUÁRIO
+
+Implementar:
+
+* Skeleton Loading
+* Loading States
+* Empty States
+* Error States
+* Mensagens amigáveis de erro
+* Indicador de última sincronização
+* Botão de sincronização manual
+
+⸻
+
+RESULTADO ESPERADO
+
+O resultado final deve parecer um software financeiro profissional pronto para uso comercial.
+
+O foco principal não é apenas mostrar dados da UTMify, mas criar uma central financeira consolidada da empresa inteira, permitindo visualizar rapidamente:
+
+* Quanto a empresa faturou
+* Quanto a empresa gastou
+* Quanto a empresa lucrou
+* Qual o ROI geral
+* Qual oferta está performando melhor
+* Como o negócio está evoluindo ao longo do tempo
+
+A aplicação deve estar pronta para conectar ao MCP fornecido e começar a operar com dados reais imediatamente.

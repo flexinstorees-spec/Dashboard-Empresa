@@ -1,0 +1,1 @@
+- [Orval Zod barrel TS2308 fix](orval-zod-barrel-collision.md) — path-param routes cause TS2308 collisions; use mode:"single" + no schemas dir for the zod orval output
