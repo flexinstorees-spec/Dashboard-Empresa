@@ -1,24 +1,54 @@
-import { useGetSyncStatus } from "@workspace/api-client-react";
+import { useGetSyncStatus, useTriggerSync } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function SyncStatusBadge({ className, showText = true }: { className?: string; showText?: boolean }) {
-  const { data: status, isLoading, refetch, isRefetching } = useGetSyncStatus({
+  const queryClient = useQueryClient();
+
+  const { data: status, isLoading, refetch } = useGetSyncStatus({
     query: {
-      refetchInterval: 30000, // 30s
+      refetchInterval: (query) => {
+        const data = query.state.data;
+        return data?.status === "syncing" ? 3000 : 30000;
+      },
     }
+  });
+
+  const { mutate: triggerSync, isPending: isTriggeringSync } = useTriggerSync({
+    mutation: {
+      onSuccess: () => {
+        // Começa a verificar o status a cada 3s enquanto sincroniza
+        refetch();
+        // Atualiza os dados do painel após a sincronização terminar
+        const poll = setInterval(async () => {
+          const result = await refetch();
+          if (result.data?.status !== "syncing") {
+            clearInterval(poll);
+            // Invalida todos os dados do painel para recarregar os gráficos e métricas
+            queryClient.invalidateQueries();
+          }
+        }, 3000);
+        // Garante que o poll para após 10 minutos no máximo
+        setTimeout(() => clearInterval(poll), 10 * 60 * 1000);
+      },
+    },
   });
 
   if (isLoading && !status) {
     return <div className="h-6 w-24 animate-pulse bg-muted rounded-full" />;
   }
 
-  const isSyncing = status?.status === "syncing" || isRefetching;
+  const isSyncing = status?.status === "syncing" || isTriggeringSync;
   const isError = status?.status === "error";
   const isSuccess = status?.status === "success";
+
+  function handleRefresh() {
+    triggerSync();
+  }
 
   return (
     <div className={cn("flex flex-col gap-1", className)}>
@@ -51,8 +81,9 @@ export function SyncStatusBadge({ className, showText = true }: { className?: st
           variant="ghost" 
           size="icon" 
           className="h-6 w-6 rounded-full" 
-          onClick={() => refetch()}
+          onClick={handleRefresh}
           disabled={isSyncing}
+          title="Sincronizar agora"
         >
           <RefreshCw className={cn("h-3 w-3", isSyncing && "animate-spin")} />
         </Button>
