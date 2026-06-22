@@ -156,7 +156,11 @@ export async function runSync(): Promise<SyncResult> {
 
     // ── 1. List dashboards ──────────────────────────────────────────────────
     if (!toolNames.includes("get_dashboards")) {
-      throw new Error("Ferramenta get_dashboards não disponível no MCP");
+      throw new Error(
+        tools.length === 0
+          ? "Token UTMify inválido ou sem permissão. Verifique o token em Configurações."
+          : "Ferramenta get_dashboards não disponível no MCP"
+      );
     }
 
     const dashboards = (await callTool("get_dashboards")) as UtmDashboard[];

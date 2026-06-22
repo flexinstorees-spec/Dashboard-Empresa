@@ -89,7 +89,13 @@ export function SyncStatusBadge({ className, showText = true }: { className?: st
         </Button>
       </div>
 
-      {showText && status?.lastSyncAt && (
+      {showText && isError && status?.message && (
+        <span className="text-[10px] text-destructive ml-1 leading-tight max-w-[180px]">
+          {status.message}
+        </span>
+      )}
+
+      {showText && !isError && status?.lastSyncAt && (
         <span className="text-[10px] text-muted-foreground ml-1">
           Última: {formatDateTime(status.lastSyncAt)}
         </span>
