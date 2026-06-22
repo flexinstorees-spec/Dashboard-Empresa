@@ -53,7 +53,7 @@ async function rpc<T = unknown>(
 
   const res = await fetch(getMcpUrl(), {
     method: "POST",
-    headers,
+    headers: { ...headers, Connection: "close" },
     body: JSON.stringify(body),
   });
 

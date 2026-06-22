@@ -228,9 +228,9 @@ export async function runSync(): Promise<SyncResult> {
 
         const range = dayRange(date.year, date.month, date.day, tzOffset);
 
-        // Fetch with one retry on rate-limit
+        // Fetch with retries for rate-limits and connection errors
         let summary: UtmSummary | null = null;
-        for (let attempt = 0; attempt < 2; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
           try {
             const result = (await callTool("get_dashboard_summary", {
               dashboardId: dash.id,
@@ -244,9 +244,18 @@ export async function runSync(): Promise<SyncResult> {
             break;
           } catch (err) {
             const msg = err instanceof Error ? err.message : "";
-            if (msg.includes("Rate limit") && attempt === 0) {
+            if (msg.includes("Rate limit") && attempt < 2) {
               logger.info({ date: date.str, dash: dash.name }, "Rate limit hit — waiting 65s then retrying");
               await new Promise((r) => setTimeout(r, 65_000));
+              continue;
+            }
+            // Connection was dropped — reinitialize MCP and retry
+            const isConnectionError = msg.includes("terminated") || msg.includes("socket") || msg.includes("ECONNRESET") || msg.includes("ENOTFOUND");
+            if (isConnectionError && attempt < 2) {
+              logger.warn({ date: date.str, dash: dash.name, attempt }, "Connection dropped, reinitializing MCP and retrying...");
+              await new Promise((r) => setTimeout(r, 2000));
+              resetMcp();
+              await initMcp();
               continue;
             }
             logger.warn({ date: date.str, dash: dash.name, err }, "Failed to fetch day, skipping");
