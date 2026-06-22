@@ -41,3 +41,9 @@ export type Offer = typeof offersTable.$inferSelect;
 export const insertDailyMetricSchema = createInsertSchema(dailyMetricsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertDailyMetric = z.infer<typeof insertDailyMetricSchema>;
 export type DailyMetric = typeof dailyMetricsTable.$inferSelect;
+
+export const appSettingsTable = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
-import { syncLogsTable, offersTable, dailyMetricsTable } from "@workspace/db";
+import { syncLogsTable, offersTable, dailyMetricsTable, appSettingsTable } from "@workspace/db";
 import { eq, and, desc, ne, sql } from "drizzle-orm";
-import { initMcp, callTool, getTools, resetMcp } from "./mcp-client";
+import { initMcp, callTool, getTools, resetMcp, setMcpToken } from "./mcp-client";
 import { logger } from "./logger";
 
 // ─── Types returned by UTMify MCP ──────────────────────────────────────────
@@ -135,6 +135,18 @@ export async function runSync(): Promise<SyncResult> {
   let offersCount = 0;
 
   try {
+    // Load UTMify token from database settings
+    const tokenRows = await db
+      .select()
+      .from(appSettingsTable)
+      .where(eq(appSettingsTable.key, "utmify_token"))
+      .limit(1);
+
+    if (tokenRows.length === 0 || !tokenRows[0].value) {
+      throw new Error("Token UTMify não configurado. Acesse Configurações e salve seu token.");
+    }
+    setMcpToken(tokenRows[0].value);
+
     resetMcp();
     await initMcp();
 

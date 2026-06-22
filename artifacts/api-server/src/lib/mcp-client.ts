@@ -1,5 +1,15 @@
-const MCP_URL =
-  "https://mcp.utmify.com.br/mcp/?token=ZEA89kPSvH34XRodkB1GgEjjMfJQGdc9&resources=gs,gm,gu,gwe,ga,gp,gwa,gr,gtf,gpc,gcs";
+let _mcpUrl: string | null = null;
+
+function getMcpUrl(): string {
+  if (!_mcpUrl) {
+    throw new Error("Token UTMify não configurado. Acesse Configurações e salve seu token.");
+  }
+  return _mcpUrl;
+}
+
+export function setMcpToken(token: string): void {
+  _mcpUrl = `https://mcp.utmify.com.br/mcp/?token=${token}&resources=gs,gm,gu,gwe,ga,gp,gwa,gr,gtf,gpc,gcs`;
+}
 
 // UTMify MCP uses the MCP 2024-11-05 protocol over plain HTTP (not SSE).
 // Required: Accept: application/json, text/event-stream (even though response is plain JSON).
@@ -37,18 +47,16 @@ async function rpc<T = unknown>(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    // UTMify requires both media types in Accept header
     Accept: "application/json, text/event-stream",
   };
   if (_sessionId) headers["mcp-session-id"] = _sessionId;
 
-  const res = await fetch(MCP_URL, {
+  const res = await fetch(getMcpUrl(), {
     method: "POST",
     headers,
     body: JSON.stringify(body),
   });
 
-  // Capture session id if server sets one
   const sid = res.headers.get("mcp-session-id");
   if (sid) _sessionId = sid;
 
@@ -77,10 +85,8 @@ export async function initMcp(): Promise<void> {
     throw new Error(`MCP init failed: ${initResp.error.message}`);
   }
 
-  // Acknowledge initialization (notification — no id, no response expected)
   await rpc("notifications/initialized").catch(() => null);
 
-  // Fetch available tools
   const toolsResp = await rpc<{ tools: McpTool[] }>("tools/list", {}, 2);
   if (toolsResp.error) {
     throw new Error(`MCP tools/list failed: ${toolsResp.error.message}`);
