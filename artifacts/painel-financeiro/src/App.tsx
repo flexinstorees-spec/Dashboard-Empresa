@@ -13,6 +13,7 @@ import Comparison from "@/pages/comparison";
 import Cashflow from "@/pages/cashflow";
 import Login from "@/pages/login";
 import Settings from "@/pages/settings";
+import Campaigns from "@/pages/campaigns";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/ofertas/:id" component={OfferDetail} />
       <Route path="/comparacao" component={Comparison} />
       <Route path="/fluxo-de-caixa" component={Cashflow} />
+      <Route path="/campanhas" component={Campaigns} />
       <Route path="/login" component={Login} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

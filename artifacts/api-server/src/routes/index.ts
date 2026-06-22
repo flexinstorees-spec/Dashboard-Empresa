@@ -6,6 +6,7 @@ import offersRouter from "./offers";
 import cashflowRouter from "./cashflow";
 import syncRouter from "./sync";
 import settingsRouter from "./settings";
+import campaignsRouter from "./campaigns";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/offers", offersRouter);
 router.use("/cashflow", cashflowRouter);
 router.use("/sync", syncRouter);
 router.use("/settings", settingsRouter);
+router.use("/campaigns", campaignsRouter);
 
 export default router;

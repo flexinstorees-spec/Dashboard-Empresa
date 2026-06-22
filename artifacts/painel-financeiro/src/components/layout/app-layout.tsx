@@ -8,7 +8,8 @@ import {
   Wallet,
   Settings,
   LogOut,
-  Menu
+  Menu,
+  Megaphone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/", label: "Visão Geral", icon: LayoutDashboard },
   { href: "/desempenho", label: "Desempenho", icon: TrendingUp },
   { href: "/ofertas", label: "Ofertas", icon: ShoppingBag },
+  { href: "/campanhas", label: "Campanhas", icon: Megaphone },
   { href: "/comparacao", label: "Comparação", icon: BarChart2 },
   { href: "/fluxo-de-caixa", label: "Fluxo de Caixa", icon: Wallet },
 ];
