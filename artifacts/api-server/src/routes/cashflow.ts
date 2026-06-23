@@ -1,16 +1,14 @@
 import { Router } from "express";
 import { getCashflowData } from "../lib/metrics";
-import { GetCashflowQueryParams } from "@workspace/api-zod";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
   try {
-    const parsed = GetCashflowQueryParams.safeParse(req.query);
-    const params = parsed.success ? parsed.data : {};
-    const period = params.period ?? "last30days";
-    const startDate = params.startDate as string | undefined;
-    const endDate = params.endDate as string | undefined;
+    const q = req.query as Record<string, string>;
+    const period = q.period && q.period !== "custom" ? q.period : (q.startDate && q.endDate ? "custom" : "last30days");
+    const startDate = q.startDate || undefined;
+    const endDate = q.endDate || undefined;
 
     const data = await getCashflowData(period, startDate, endDate);
     res.json(data);

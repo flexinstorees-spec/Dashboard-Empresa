@@ -1,17 +1,22 @@
 import { Router } from "express";
 import { getOffersData, getOfferData, getComparisonData, getPerformanceData } from "../lib/metrics";
-import { GetOffersQueryParams, FetchOfferQueryParams, FetchOfferPerformanceQueryParams, GetComparisonQueryParams } from "@workspace/api-zod";
 
 const router = Router();
 
+function extractParams(q: Record<string, string>, defaultPeriod: string) {
+  const period = q.period && q.period !== "custom" ? q.period : (q.startDate && q.endDate ? "custom" : defaultPeriod);
+  return {
+    period,
+    startDate: q.startDate || undefined,
+    endDate: q.endDate || undefined,
+  };
+}
+
 router.get("/", async (req, res) => {
   try {
-    const parsed = GetOffersQueryParams.safeParse(req.query);
-    const params = parsed.success ? parsed.data : {};
-    const period = params.period ?? "last30days";
-    const sortBy = params.sortBy ?? "profit";
-    const startDate = params.startDate as string | undefined;
-    const endDate = params.endDate as string | undefined;
+    const q = req.query as Record<string, string>;
+    const { period, startDate, endDate } = extractParams(q, "last30days");
+    const sortBy = q.sortBy ?? "profit";
 
     const data = await getOffersData(period, sortBy, startDate, endDate);
     res.json(data);
@@ -22,12 +27,9 @@ router.get("/", async (req, res) => {
 
 router.get("/comparison", async (req, res) => {
   try {
-    const parsed = GetComparisonQueryParams.safeParse(req.query);
-    const params = parsed.success ? parsed.data : { offerIds: "" };
-    const offerIds = (params.offerIds ?? "").split(",").filter(Boolean);
-    const period = params.period ?? "last30days";
-    const startDate = params.startDate as string | undefined;
-    const endDate = params.endDate as string | undefined;
+    const q = req.query as Record<string, string>;
+    const { period, startDate, endDate } = extractParams(q, "last30days");
+    const offerIds = (q.offerIds ?? "").split(",").filter(Boolean);
 
     const data = await getComparisonData(offerIds, period, startDate, endDate);
     res.json(data);
@@ -38,11 +40,8 @@ router.get("/comparison", async (req, res) => {
 
 router.get("/:offerId", async (req, res) => {
   try {
-    const parsed = FetchOfferQueryParams.safeParse(req.query);
-    const params = parsed.success ? parsed.data : {};
-    const period = params.period ?? "last30days";
-    const startDate = params.startDate as string | undefined;
-    const endDate = params.endDate as string | undefined;
+    const q = req.query as Record<string, string>;
+    const { period, startDate, endDate } = extractParams(q, "last30days");
 
     const data = await getOfferData(req.params.offerId, period, startDate, endDate);
     if (!data) {
@@ -57,11 +56,8 @@ router.get("/:offerId", async (req, res) => {
 
 router.get("/:offerId/performance", async (req, res) => {
   try {
-    const parsed = FetchOfferPerformanceQueryParams.safeParse(req.query);
-    const params = parsed.success ? parsed.data : {};
-    const period = params.period ?? "last30days";
-    const startDate = params.startDate as string | undefined;
-    const endDate = params.endDate as string | undefined;
+    const q = req.query as Record<string, string>;
+    const { period, startDate, endDate } = extractParams(q, "last30days");
 
     const data = await getPerformanceData(period, startDate, endDate, req.params.offerId);
     res.json(data);

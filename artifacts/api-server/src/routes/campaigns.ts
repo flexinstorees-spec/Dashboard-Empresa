@@ -53,7 +53,12 @@ function toIso(date: { y: number; m: number; d: number }, endOfDay: boolean): st
   return `${date.y}-${pad(date.m + 1)}-${pad(date.d)}T${time}-03:00`;
 }
 
-function getDateRange(period: string): { from: string; to: string } {
+function getDateRange(period: string, startDate?: string, endDate?: string): { from: string; to: string } {
+  if (startDate && endDate) {
+    const startBrt = `${startDate}T00:00:00-03:00`;
+    const endBrt = `${endDate}T23:59:59-03:00`;
+    return { from: startBrt, to: endBrt };
+  }
   const today = getBrtToday();
   let start = { ...today };
   let end = { ...today };
@@ -113,8 +118,11 @@ function mapCampaign(c: RawCampaign, dashboardName: string) {
 
 router.get("/", async (req, res) => {
   try {
-    const { period = "last30days", force } = req.query as Record<string, string>;
-    const forceRefresh = force === "true";
+    const q = req.query as Record<string, string>;
+    const period = q.period && q.period !== "custom" ? q.period : "last30days";
+    const startDate = q.startDate || undefined;
+    const endDate = q.endDate || undefined;
+    const forceRefresh = q.force === "true";
 
     const tokenRows = await db
       .select()
@@ -127,7 +135,7 @@ router.get("/", async (req, res) => {
       return;
     }
 
-    const cacheKey = period;
+    const cacheKey = startDate && endDate ? `custom:${startDate}:${endDate}` : period;
     if (!forceRefresh) {
       const cached = cache.get(cacheKey);
       if (cached && Date.now() < cached.expiresAt) {
@@ -147,7 +155,7 @@ router.get("/", async (req, res) => {
     resetMcp();
     await initMcp();
 
-    const dateRange = getDateRange(period);
+    const dateRange = getDateRange(period, startDate, endDate);
     const all: ReturnType<typeof mapCampaign>[] = [];
 
     for (const offer of dbOffers) {

@@ -1,18 +1,21 @@
 import { Router } from "express";
 import { getPerformanceData } from "../lib/metrics";
-import { GetPerformanceQueryParams } from "@workspace/api-zod";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
-  const parsed = GetPerformanceQueryParams.safeParse(req.query);
-  const params = parsed.success ? parsed.data : {};
-  const period = params.period ?? "last30days";
-  const startDate = params.startDate ?? undefined;
-  const endDate = params.endDate ?? undefined;
+  try {
+    const q = req.query as Record<string, string>;
+    const period = q.period && q.period !== "custom" ? q.period : (q.startDate && q.endDate ? "custom" : "last30days");
+    const startDate = q.startDate || undefined;
+    const endDate = q.endDate || undefined;
 
-  const data = await getPerformanceData(period, startDate as string | undefined, endDate as string | undefined);
-  res.json(data);
+    const data = await getPerformanceData(period, startDate, endDate);
+    res.json(data);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erro ao buscar desempenho";
+    res.status(500).json({ error: msg });
+  }
 });
 
 export default router;
