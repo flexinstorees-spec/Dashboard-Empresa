@@ -5,44 +5,62 @@ import { eq, and, gte, lte, sql, ne } from "drizzle-orm";
 export type Period = "today" | "yesterday" | "last7days" | "last30days" | "thismonth" | "lastmonth";
 export type ChartPeriod = "last7days" | "last30days" | "last90days" | "thismonth" | "lastmonth";
 
+const BRT_OFFSET_MS = -3 * 60 * 60 * 1000;
+
 interface DateRange {
   start: Date;
   end: Date;
 }
 
-export function getDateRange(period: string, startDate?: string, endDate?: string): DateRange {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+/**
+ * Returns the current date as a UTC-midnight Date anchored to BRT (UTC-3).
+ * For example, if UTC is 2026-06-23T00:30Z, BRT is still 2026-06-22,
+ * so this returns 2026-06-22T00:00:00Z.
+ * Using UTC midnight ensures that toISOString().substring(0,10) gives the BRT date string.
+ */
+function getBrtToday(): Date {
+  const brtNow = new Date(Date.now() + BRT_OFFSET_MS);
+  return new Date(Date.UTC(brtNow.getUTCFullYear(), brtNow.getUTCMonth(), brtNow.getUTCDate()));
+}
 
+export function getDateRange(period: string, startDate?: string, endDate?: string): DateRange {
   if (startDate && endDate) {
     return { start: new Date(startDate), end: new Date(endDate) };
   }
 
+  const today = getBrtToday();
+  const DAY = 86_400_000;
+
   switch (period) {
     case "today":
-      return { start: today, end: new Date(today.getTime() + 86400000 - 1) };
+      return { start: today, end: new Date(today.getTime() + DAY - 1) };
     case "yesterday": {
-      const y = new Date(today.getTime() - 86400000);
+      const y = new Date(today.getTime() - DAY);
       return { start: y, end: new Date(today.getTime() - 1) };
     }
     case "last7days":
-      return { start: new Date(today.getTime() - 6 * 86400000), end: new Date(today.getTime() + 86400000 - 1) };
+      return { start: new Date(today.getTime() - 6 * DAY), end: new Date(today.getTime() + DAY - 1) };
     case "last30days":
-      return { start: new Date(today.getTime() - 29 * 86400000), end: new Date(today.getTime() + 86400000 - 1) };
+      return { start: new Date(today.getTime() - 29 * DAY), end: new Date(today.getTime() + DAY - 1) };
     case "last90days":
-      return { start: new Date(today.getTime() - 89 * 86400000), end: new Date(today.getTime() + 86400000 - 1) };
-    case "thismonth":
-      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(today.getTime() + 86400000 - 1) };
+      return { start: new Date(today.getTime() - 89 * DAY), end: new Date(today.getTime() + DAY - 1) };
+    case "thismonth": {
+      const brtNow = new Date(Date.now() + BRT_OFFSET_MS);
+      const firstOfMonth = new Date(Date.UTC(brtNow.getUTCFullYear(), brtNow.getUTCMonth(), 1));
+      return { start: firstOfMonth, end: new Date(today.getTime() + DAY - 1) };
+    }
     case "lastmonth": {
-      const fm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lm = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-      return { start: fm, end: lm };
+      const brtNow = new Date(Date.now() + BRT_OFFSET_MS);
+      const firstOfLastMonth = new Date(Date.UTC(brtNow.getUTCFullYear(), brtNow.getUTCMonth() - 1, 1));
+      const lastOfLastMonth = new Date(Date.UTC(brtNow.getUTCFullYear(), brtNow.getUTCMonth(), 0, 23, 59, 59, 999));
+      return { start: firstOfLastMonth, end: lastOfLastMonth };
     }
     default:
-      return { start: new Date(today.getTime() - 29 * 86400000), end: new Date(today.getTime() + 86400000 - 1) };
+      return { start: new Date(today.getTime() - 29 * DAY), end: new Date(today.getTime() + DAY - 1) };
   }
 }
 
+/** Format Date → "YYYY-MM-DD" using UTC fields (safe because getBrtToday returns UTC midnight of BRT date). */
 function toDateStr(d: Date): string {
   return d.toISOString().substring(0, 10);
 }
@@ -99,9 +117,9 @@ function pctChange(current: number, previous: number): number {
 
 export async function getOverviewMetrics(period: string, startDate?: string, endDate?: string) {
   const range = getDateRange(period, startDate, endDate);
-  const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86400000));
+  const rangeDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000));
   const prevRange: DateRange = {
-    start: new Date(range.start.getTime() - rangeDays * 86400000),
+    start: new Date(range.start.getTime() - rangeDays * 86_400_000),
     end: new Date(range.start.getTime() - 1),
   };
 

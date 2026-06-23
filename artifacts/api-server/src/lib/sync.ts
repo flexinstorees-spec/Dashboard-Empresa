@@ -187,26 +187,26 @@ export async function runSync(): Promise<SyncResult> {
     }
 
     const daysToFetch = 90;
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-
-    // Build date list (today → 90 days ago)
-    const dates = Array.from({ length: daysToFetch }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      return {
-        year: d.getFullYear(),
-        month: d.getMonth(),
-        day: d.getDate(),
-        str: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      };
-    });
 
     // Throttle: 1100ms between API calls → ~54 req/min (safely under UTMify's 60/min)
     const THROTTLE_MS = 1100;
 
     for (const dash of dashboards) {
       const tzOffset = dash.timeZone ?? -3; // dashboard local offset (e.g. -3 = BRT)
+
+      // Compute "today" in the dashboard's own timezone (not server UTC)
+      const nowMs = Date.now();
+      const tzNow = new Date(nowMs + tzOffset * 60 * 60 * 1000);
+      const todayStr = `${tzNow.getUTCFullYear()}-${pad(tzNow.getUTCMonth() + 1)}-${pad(tzNow.getUTCDate())}`;
+
+      // Build date list anchored to the dashboard timezone
+      const dates = Array.from({ length: daysToFetch }, (_, i) => {
+        const tzDay = new Date(nowMs + tzOffset * 60 * 60 * 1000 - i * 86_400_000);
+        const year = tzDay.getUTCFullYear();
+        const month = tzDay.getUTCMonth();
+        const day = tzDay.getUTCDate();
+        return { year, month, day, str: `${year}-${pad(month + 1)}-${pad(day)}` };
+      });
 
       // ── Delta sync: fetch existing dates for this dashboard from DB ────────
       // Skip dates already stored UNLESS it's today (always refresh today's data).
