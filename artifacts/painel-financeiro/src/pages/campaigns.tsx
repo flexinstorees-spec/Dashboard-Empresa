@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
 import { formatCurrency } from "@/lib/format";
@@ -72,19 +72,29 @@ function DashboardBadge({ name }: { name: string }) {
 
 export default function Campaigns() {
   const [period, setPeriod] = useState("last30days");
+  // Ref to signal that the next queryFn call should bypass server cache
+  const forceRef = useRef(false);
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["campaigns", period],
     queryFn: async () => {
-      const res = await fetch(`${BASE}/campaigns?period=${period}`);
+      const force = forceRef.current;
+      forceRef.current = false;
+      const url = `${BASE}/campaigns?period=${period}${force ? "&force=true" : ""}`;
+      const res = await fetch(url);
       if (!res.ok) {
         const err = await res.json() as { error?: string };
         throw new Error(err.error ?? "Erro ao buscar campanhas");
       }
       return res.json() as Promise<{ campaigns: Campaign[] }>;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 3 * 60 * 1000,
   });
+
+  const handleForceRefresh = () => {
+    forceRef.current = true;
+    refetch();
+  };
 
   const campaigns = data?.campaigns ?? [];
   const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
@@ -104,9 +114,16 @@ export default function Campaigns() {
               Todas as campanhas ordenadas por melhor desempenho.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading || isRefetching} className="self-start md:self-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleForceRefresh}
+            disabled={isLoading || isRefetching}
+            className="self-start md:self-auto"
+            title="Buscar dados mais recentes da UTMify (ignora cache)"
+          >
             <RefreshCw className={cn("h-4 w-4 mr-2", isRefetching && "animate-spin")} />
-            Atualizar
+            {isRefetching ? "Atualizando..." : "Atualizar"}
           </Button>
         </div>
 
@@ -161,14 +178,14 @@ export default function Campaigns() {
           {isLoading || isRefetching ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
               <RefreshCw className="h-6 w-6 animate-spin" />
-              <span className="text-sm">Buscando campanhas de todos os dashboards...</span>
+              <span className="text-sm">Buscando dados atualizados da UTMify...</span>
               <span className="text-xs opacity-60">Isso pode levar alguns segundos</span>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-destructive">
               <AlertCircle className="h-8 w-8" />
               <p className="font-medium">{(error as Error).message}</p>
-              <Button variant="outline" size="sm" onClick={() => refetch()}>Tentar novamente</Button>
+              <Button variant="outline" size="sm" onClick={handleForceRefresh}>Tentar novamente</Button>
             </div>
           ) : campaigns.length === 0 ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -179,8 +196,8 @@ export default function Campaigns() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">#</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground w-[260px]">Campanha</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground w-8">#</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Campanha</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Gasto</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Receita</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Lucro</th>
@@ -253,7 +270,7 @@ export default function Campaigns() {
 
         {campaigns.length > 0 && (
           <p className="text-xs text-muted-foreground text-right">
-            {campaigns.length} campanha{campaigns.length !== 1 ? "s" : ""} de todos os dashboards · Dados em tempo real da UTMify
+            {campaigns.length} campanha{campaigns.length !== 1 ? "s" : ""} · Dados em tempo real da UTMify
           </p>
         )}
       </div>
