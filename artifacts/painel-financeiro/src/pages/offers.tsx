@@ -1,21 +1,23 @@
 import { AppLayout } from "@/components/layout/app-layout";
 import { PeriodFilter } from "@/components/period-filter";
 import { useState } from "react";
-import { GetOffersPeriod, GetOffersSortBy, useGetOffers, getGetOffersQueryKey } from "@workspace/api-client-react";
+import { GetOffersSortBy, useGetOffers, getGetOffersQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatPercentage } from "@/lib/format";
 import { Link } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, ShoppingBag } from "lucide-react";
+import { usePeriodFilter } from "@/hooks/use-period-filter";
 
 export default function Offers() {
-  const [period, setPeriod] = useState<GetOffersPeriod>(GetOffersPeriod.today);
+  const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
   const [sortBy, setSortBy] = useState<GetOffersSortBy>(GetOffersSortBy.profit);
   
+  const params = { ...apiParams, sortBy };
   const { data, isLoading } = useGetOffers(
-    { period, sortBy },
-    { query: { queryKey: getGetOffersQueryKey({ period, sortBy }) } }
+    params,
+    { query: { queryKey: [...getGetOffersQueryKey(params), ...queryKey] } }
   );
 
   return (
@@ -29,8 +31,7 @@ export default function Offers() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-            {/* @ts-ignore */}
-            <PeriodFilter value={period} onChange={setPeriod} />
+            <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
             <Select value={sortBy} onValueChange={(val) => setSortBy(val as GetOffersSortBy)}>
               <SelectTrigger className="w-[160px] h-9">
                 <SelectValue placeholder="Ordenar por" />

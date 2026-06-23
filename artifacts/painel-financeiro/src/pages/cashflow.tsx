@@ -1,19 +1,19 @@
 import { AppLayout } from "@/components/layout/app-layout";
 import { PeriodFilter } from "@/components/period-filter";
-import { useState } from "react";
-import { GetCashflowPeriod, useGetCashflow, getGetCashflowQueryKey } from "@workspace/api-client-react";
+import { useGetCashflow, getGetCashflowQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { usePeriodFilter } from "@/hooks/use-period-filter";
 
 export default function Cashflow() {
-  const [period, setPeriod] = useState<GetCashflowPeriod>(GetCashflowPeriod.today);
-  
+  const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
+
   const { data, isLoading } = useGetCashflow(
-    { period },
-    { query: { queryKey: getGetCashflowQueryKey({ period }) } }
+    apiParams,
+    { query: { queryKey: [...getGetCashflowQueryKey(apiParams), ...queryKey] } }
   );
 
   return (
@@ -26,8 +26,7 @@ export default function Cashflow() {
               Acompanhamento do saldo acumulado ao longo do tempo.
             </p>
           </div>
-          {/* @ts-ignore */}
-          <PeriodFilter value={period} onChange={setPeriod} />
+          <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">

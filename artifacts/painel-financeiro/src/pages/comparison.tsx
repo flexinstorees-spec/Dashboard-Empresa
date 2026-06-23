@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/layout/app-layout";
 import { PeriodFilter } from "@/components/period-filter";
 import { useState } from "react";
-import { GetComparisonPeriod, GetOffersPeriod, useGetComparison, useGetOffers, getGetComparisonQueryKey } from "@workspace/api-client-react";
+import { useGetComparison, useGetOffers, getGetComparisonQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatPercentage } from "@/lib/format";
@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { usePeriodFilter } from "@/hooks/use-period-filter";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -19,18 +20,16 @@ const COLORS = [
 ];
 
 export default function Comparison() {
-  const [period, setPeriod] = useState<GetComparisonPeriod>(GetComparisonPeriod.today);
+  const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
   const [selectedOffers, setSelectedOffers] = useState<string[]>([]);
   
-  // Use same period for fetching offers
-  const { data: availableOffers, isLoading: isLoadingOffers } = useGetOffers({
-    period: period as unknown as GetOffersPeriod,
-  });
+  const { data: availableOffers, isLoading: isLoadingOffers } = useGetOffers(apiParams);
 
   const offerIds = selectedOffers.join(",");
+  const compParams = { ...apiParams, offerIds };
   const { data: comparisonData, isLoading: isLoadingComparison } = useGetComparison(
-    { period, offerIds },
-    { query: { queryKey: getGetComparisonQueryKey({ period, offerIds }), enabled: selectedOffers.length > 0 } }
+    compParams,
+    { query: { queryKey: [...getGetComparisonQueryKey(compParams), ...queryKey], enabled: selectedOffers.length > 0 } }
   );
 
   const toggleOffer = (id: string) => {
@@ -51,8 +50,7 @@ export default function Comparison() {
               Compare o desempenho de até 5 ofertas lado a lado.
             </p>
           </div>
-          {/* @ts-ignore */}
-          <PeriodFilter value={period} onChange={setPeriod} />
+          <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

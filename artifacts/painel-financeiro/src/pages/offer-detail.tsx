@@ -1,7 +1,6 @@
 import { AppLayout } from "@/components/layout/app-layout";
 import { PeriodFilter } from "@/components/period-filter";
-import { useState } from "react";
-import { FetchOfferPeriod, FetchOfferPerformancePeriod, useFetchOffer, useFetchOfferPerformance, getFetchOfferQueryKey, getFetchOfferPerformanceQueryKey } from "@workspace/api-client-react";
+import { useFetchOffer, useFetchOfferPerformance, getFetchOfferQueryKey, getFetchOfferPerformanceQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/format";
@@ -9,21 +8,22 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { useParams, Link } from "wouter";
 import { ArrowLeft, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePeriodFilter } from "@/hooks/use-period-filter";
 
 export default function OfferDetail() {
   const { id } = useParams<{ id: string }>();
-  const [period, setPeriod] = useState<FetchOfferPeriod>(FetchOfferPeriod.today);
-  
+  const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
+
   const { data: offer, isLoading: isLoadingOffer } = useFetchOffer(
     id || "",
-    { period },
-    { query: { queryKey: getFetchOfferQueryKey(id || "", { period }), enabled: !!id } }
+    apiParams,
+    { query: { queryKey: [...getFetchOfferQueryKey(id || "", apiParams), ...queryKey], enabled: !!id } }
   );
 
   const { data: performance, isLoading: isLoadingPerf } = useFetchOfferPerformance(
     id || "",
-    { period: period as unknown as FetchOfferPerformancePeriod },
-    { query: { queryKey: getFetchOfferPerformanceQueryKey(id || "", { period: period as unknown as FetchOfferPerformancePeriod }), enabled: !!id } }
+    apiParams,
+    { query: { queryKey: [...getFetchOfferPerformanceQueryKey(id || "", apiParams), ...queryKey], enabled: !!id } }
   );
 
   if (!id) return null;
@@ -52,8 +52,7 @@ export default function OfferDetail() {
               </p>
             </div>
           </div>
-          {/* @ts-ignore */}
-          <PeriodFilter value={period} onChange={setPeriod} />
+          <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
 
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

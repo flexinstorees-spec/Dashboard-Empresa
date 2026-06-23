@@ -1,19 +1,18 @@
 import { AppLayout } from "@/components/layout/app-layout";
 import { PeriodFilter } from "@/components/period-filter";
-import { useState } from "react";
-import { GetPerformancePeriod, useGetPerformance, getGetPerformanceQueryKey } from "@workspace/api-client-react";
+import { useGetPerformance, getGetPerformanceQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { usePeriodFilter } from "@/hooks/use-period-filter";
 
 export default function Performance() {
-  const [period, setPeriod] = useState<GetPerformancePeriod>(GetPerformancePeriod.today);
-  
-  // Cast required because GetPerformancePeriod doesn't perfectly overlap with GetOverviewPeriod types if they differ
+  const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
+
   const { data, isLoading } = useGetPerformance(
-    { period },
-    { query: { queryKey: getGetPerformanceQueryKey({ period }) } }
+    apiParams,
+    { query: { queryKey: [...getGetPerformanceQueryKey(apiParams), ...queryKey] } }
   );
 
   return (
@@ -26,8 +25,7 @@ export default function Performance() {
               Evolução das suas receitas, lucros e gastos.
             </p>
           </div>
-          {/* @ts-ignore - using same filter for simplicity */}
-          <PeriodFilter value={period} onChange={setPeriod} />
+          <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
 
         <div className="grid gap-6">
