@@ -2,18 +2,54 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { PeriodFilter } from "@/components/period-filter";
 import { useState } from "react";
 import { GetOverviewPeriod, useGetOverview, getGetOverviewQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercentage } from "@/lib/format";
-import { ArrowDownIcon, ArrowUpIcon, DollarSign, PieChart, TrendingDown, TrendingUp, AlertCircle } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, DollarSign, PieChart, TrendingDown, TrendingUp, AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "").replace(/\/painel-financeiro$/, "") + "/api";
+
+interface Campaign {
+  id: string;
+  name: string;
+  dashboard: string;
+  spend: number;
+  revenue: number;
+  profit: number;
+  roi: number;
+  roas: number;
+  approvedOrdersCount: number;
+}
+
+const DASHBOARD_COLORS: Record<string, string> = {
+  COSTURA: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400",
+  CERAMICA: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400",
+};
 
 export default function Overview() {
   const [period, setPeriod] = useState<GetOverviewPeriod>(GetOverviewPeriod.today);
+
   const { data, isLoading, isError, refetch } = useGetOverview(
     { period },
     { query: { queryKey: getGetOverviewQueryKey({ period }) } }
   );
+
+  const { data: campaignsData, isLoading: isLoadingCampaigns } = useQuery({
+    queryKey: ["overview-campaigns", period],
+    queryFn: async () => {
+      const res = await fetch(`${BASE}/campaigns?period=${period}`);
+      if (!res.ok) throw new Error("Erro ao buscar campanhas");
+      return res.json() as Promise<{ campaigns: Campaign[] }>;
+    },
+    staleTime: 3 * 60 * 1000,
+  });
+
+  const campaigns = (campaignsData?.campaigns ?? [])
+    .filter((c) => c.spend > 0)
+    .sort((a, b) => b.profit - a.profit);
 
   return (
     <AppLayout>
@@ -38,6 +74,7 @@ export default function Overview() {
           </div>
         )}
 
+        {/* KPI Cards */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -85,40 +122,78 @@ export default function Overview() {
           ) : null}
         </div>
 
-        <h2 className="text-xl font-bold tracking-tight mt-4">Hoje</h2>
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          {isLoading ? (
-             Array.from({ length: 4 }).map((_, i) => <Skeleton key={`today-${i}`} className="h-24 rounded-xl" />)
-          ) : data ? (
-            <>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Gastos</CardDescription>
-                  <CardTitle className="text-2xl text-destructive">{formatCurrency(data.todayExpenses)}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Receita</CardDescription>
-                  <CardTitle className="text-2xl">{formatCurrency(data.todayRevenue)}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Lucro</CardDescription>
-                  <CardTitle className={cn("text-2xl", data.todayProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
-                    {formatCurrency(data.todayProfit)}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Vendas</CardDescription>
-                  <CardTitle className="text-2xl">{data.todaySales}</CardTitle>
-                </CardHeader>
-              </Card>
-            </>
-          ) : null}
+        {/* Campaigns table */}
+        <div>
+          <h2 className="text-xl font-bold tracking-tight mb-4">
+            Campanhas Meta Ads
+            <span className="ml-2 text-sm font-normal text-muted-foreground">da melhor para pior • {campaigns.length} ativa{campaigns.length !== 1 ? "s" : ""}</span>
+          </h2>
+
+          <div className="border rounded-lg bg-card overflow-hidden">
+            {isLoadingCampaigns ? (
+              <div className="flex items-center justify-center gap-3 py-12 text-muted-foreground">
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Buscando campanhas da UTMify...</span>
+              </div>
+            ) : campaigns.length === 0 ? (
+              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                Nenhuma campanha com gasto encontrada neste período.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40">
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground w-8">#</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Campanha</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Gasto</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Receita</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Lucro</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">ROI</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">ROAS</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Vendas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {campaigns.map((c, i) => (
+                      <tr key={`${c.dashboard}-${c.id}`} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 text-muted-foreground font-medium tabular-nums">{i + 1}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1 max-w-[280px]">
+                            <span className="font-medium truncate leading-tight" title={c.name}>{c.name}</span>
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px] px-1.5 py-0.5 font-medium w-fit", DASHBOARD_COLORS[c.dashboard] ?? "bg-muted text-muted-foreground")}
+                            >
+                              {c.dashboard}
+                            </Badge>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-destructive font-medium">
+                          {formatCurrency(c.spend)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(c.revenue)}
+                        </td>
+                        <td className={cn("px-4 py-3 text-right tabular-nums font-semibold", c.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                          {formatCurrency(c.profit)}
+                        </td>
+                        <td className={cn("px-4 py-3 text-right tabular-nums font-medium", c.roi >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                          {c.roi.toFixed(1)}%
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                          {c.roas.toFixed(2)}x
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {c.approvedOrdersCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </AppLayout>
