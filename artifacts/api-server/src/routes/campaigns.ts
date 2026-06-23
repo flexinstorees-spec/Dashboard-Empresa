@@ -6,6 +6,36 @@ import { initMcp, callTool, resetMcp, setMcpToken } from "../lib/mcp-client";
 
 const router = Router();
 
+interface RawCampaign {
+  id: string;
+  name: string;
+  status: string;
+  effectiveStatus: string;
+  spend: number;
+  revenue: number;
+  profit: number;
+  roi: number;
+  roas: number;
+  approvedOrdersCount: number;
+  refundedOrdersCount: number;
+  cpa: number;
+  cpp: number;
+  impressions: number;
+  inlineLinkClicks: number;
+  inlineLinkClickCtr: number;
+  profitMargin: number;
+  dailyBudget: number | null;
+}
+
+const DASHBOARDS = [
+  { id: "674db4d157e6328d0794c11f", name: "COSTURA" },
+  { id: "69e7c854eb1c09f769d03754", name: "CERAMICA" },
+];
+
+// In-memory cache: key=`${period}`, value={data, expiresAt}
+const cache = new Map<string, { data: ReturnType<typeof mapCampaign>[]; expiresAt: number }>();
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -20,7 +50,6 @@ function toIso(d: Date, tzOffset: number, endOfDay = false): string {
 function getDateRange(period: string, tzOffset = -3): { from: string; to: string } {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
   let start: Date;
   let end: Date = today;
 
@@ -30,8 +59,7 @@ function getDateRange(period: string, tzOffset = -3): { from: string; to: string
       break;
     case "yesterday": {
       const y = new Date(today.getTime() - 86400000);
-      start = y;
-      end = y;
+      start = y; end = y;
       break;
     }
     case "last7days":
@@ -44,23 +72,40 @@ function getDateRange(period: string, tzOffset = -3): { from: string; to: string
       start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       end = new Date(now.getFullYear(), now.getMonth(), 0);
       break;
-    default: // last30days
+    default:
       start = new Date(today.getTime() - 29 * 86400000);
   }
 
   return { from: toIso(start, tzOffset, false), to: toIso(end, tzOffset, true) };
 }
 
-// GET /api/campaigns?dashboardId=xxx&period=last30days&level=campaign
+function mapCampaign(c: RawCampaign, dashboardName: string) {
+  return {
+    id: c.id,
+    name: c.name,
+    dashboard: dashboardName,
+    status: c.status,
+    effectiveStatus: c.effectiveStatus,
+    spend: (c.spend ?? 0) / 100,
+    revenue: (c.revenue ?? 0) / 100,
+    profit: (c.profit ?? 0) / 100,
+    roi: c.roi ?? 0,
+    roas: c.roas ?? 0,
+    approvedOrdersCount: c.approvedOrdersCount ?? 0,
+    refundedOrdersCount: c.refundedOrdersCount ?? 0,
+    cpa: (c.cpa ?? 0) / 100,
+    impressions: c.impressions ?? 0,
+    clicks: c.inlineLinkClicks ?? 0,
+    ctr: c.inlineLinkClickCtr ?? 0,
+    profitMargin: c.profitMargin ?? 0,
+    dailyBudget: c.dailyBudget != null ? c.dailyBudget / 100 : null,
+  };
+}
+
+// GET /api/campaigns?period=last30days
 router.get("/", async (req, res) => {
-  const { dashboardId, period = "last30days", level = "campaign" } = req.query as Record<string, string>;
+  const { period = "last30days" } = req.query as Record<string, string>;
 
-  if (!dashboardId) {
-    res.status(400).json({ error: "dashboardId é obrigatório" });
-    return;
-  }
-
-  // Load token
   const tokenRows = await db
     .select()
     .from(appSettingsTable)
@@ -72,66 +117,46 @@ router.get("/", async (req, res) => {
     return;
   }
 
+  // Serve from cache if fresh
+  const cacheKey = period;
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    res.json({ campaigns: cached.data, period, cached: true });
+    return;
+  }
+
   try {
     setMcpToken(tokenRows[0].value);
     resetMcp();
     await initMcp();
 
     const dateRange = getDateRange(period);
+    const all: ReturnType<typeof mapCampaign>[] = [];
 
-    const raw = await callTool("get_meta_ad_objects", {
-      dashboardId,
-      level: level as string,
-      dateRange,
-      orderBy: "greater_profit",
-    }) as { results?: RawCampaign[] } | RawCampaign[] | null;
+    for (const dashboard of DASHBOARDS) {
+      const raw = await callTool("get_meta_ad_objects", {
+        dashboardId: dashboard.id,
+        level: "campaign",
+        dateRange,
+        orderBy: "greater_profit",
+      }) as { results?: RawCampaign[] } | RawCampaign[] | null;
 
-    interface RawCampaign {
-      id: string;
-      name: string;
-      status: string;
-      effectiveStatus: string;
-      spend: number;
-      revenue: number;
-      profit: number;
-      roi: number;
-      roas: number;
-      approvedOrdersCount: number;
-      refundedOrdersCount: number;
-      cpa: number;
-      cpp: number;
-      impressions: number;
-      inlineLinkClicks: number;
-      inlineLinkClickCtr: number;
-      profitMargin: number;
-      dailyBudget: number | null;
-      lifetimeBudget: number | null;
+      const results: RawCampaign[] = Array.isArray(raw) ? raw : (raw?.results ?? []);
+      for (const c of results) {
+        all.push(mapCampaign(c, dashboard.name));
+      }
+
+      // Throttle between dashboard fetches
+      await new Promise((r) => setTimeout(r, 1200));
     }
 
-    const results: RawCampaign[] = Array.isArray(raw) ? raw : (raw?.results ?? []);
+    // Sort by profit descending (best first)
+    all.sort((a, b) => b.profit - a.profit);
 
-    const campaigns = results.map((c) => ({
-      id: c.id,
-      name: c.name,
-      status: c.status,
-      effectiveStatus: c.effectiveStatus,
-      spend: (c.spend ?? 0) / 100,
-      revenue: (c.revenue ?? 0) / 100,
-      profit: (c.profit ?? 0) / 100,
-      roi: c.roi ?? 0,
-      roas: c.roas ?? 0,
-      approvedOrdersCount: c.approvedOrdersCount ?? 0,
-      refundedOrdersCount: c.refundedOrdersCount ?? 0,
-      cpa: (c.cpa ?? 0) / 100,
-      cpp: (c.cpp ?? 0) / 100,
-      impressions: c.impressions ?? 0,
-      clicks: c.inlineLinkClicks ?? 0,
-      ctr: c.inlineLinkClickCtr ?? 0,
-      profitMargin: c.profitMargin ?? 0,
-      dailyBudget: c.dailyBudget != null ? c.dailyBudget / 100 : null,
-    }));
+    // Save to cache
+    cache.set(cacheKey, { data: all, expiresAt: Date.now() + CACHE_TTL_MS });
 
-    res.json({ campaigns, period, dashboardId, level });
+    res.json({ campaigns: all, period, cached: false });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     res.status(500).json({ error: msg });

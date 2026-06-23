@@ -9,11 +9,6 @@ import { Button } from "@/components/ui/button";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "").replace(/\/painel-financeiro$/, "") + "/api";
 
-const DASHBOARDS = [
-  { id: "674db4d157e6328d0794c11f", name: "COSTURA" },
-  { id: "69e7c854eb1c09f769d03754", name: "CERAMICA" },
-];
-
 const PERIODS = [
   { value: "today", label: "Hoje" },
   { value: "yesterday", label: "Ontem" },
@@ -26,6 +21,7 @@ const PERIODS = [
 interface Campaign {
   id: string;
   name: string;
+  dashboard: string;
   status: string;
   effectiveStatus: string;
   spend: number;
@@ -62,32 +58,25 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function MetricCell({ value, format, highlight }: { value: number; format: "currency" | "percent" | "number" | "roas"; highlight?: boolean }) {
-  const formatted =
-    format === "currency" ? formatCurrency(value) :
-    format === "percent" ? `${(value * 100).toFixed(1)}%` :
-    format === "roas" ? `${value.toFixed(2)}x` :
-    value.toLocaleString("pt-BR");
-
-  if (!highlight) return <span className="font-medium tabular-nums">{formatted}</span>;
-
-  const isPositive = value > 0;
+function DashboardBadge({ name }: { name: string }) {
+  const colors: Record<string, string> = {
+    COSTURA: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400",
+    CERAMICA: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400",
+  };
   return (
-    <span className={cn("font-semibold tabular-nums flex items-center gap-1", isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")}>
-      {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {formatted}
-    </span>
+    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0.5 font-medium", colors[name] ?? "bg-muted text-muted-foreground")}>
+      {name}
+    </Badge>
   );
 }
 
 export default function Campaigns() {
-  const [dashboardId, setDashboardId] = useState(DASHBOARDS[0].id);
   const [period, setPeriod] = useState("last30days");
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ["campaigns", dashboardId, period],
+    queryKey: ["campaigns", period],
     queryFn: async () => {
-      const res = await fetch(`${BASE}/campaigns?dashboardId=${dashboardId}&period=${period}&level=campaign`);
+      const res = await fetch(`${BASE}/campaigns?period=${period}`);
       if (!res.ok) {
         const err = await res.json() as { error?: string };
         throw new Error(err.error ?? "Erro ao buscar campanhas");
@@ -102,6 +91,7 @@ export default function Campaigns() {
   const totalRevenue = campaigns.reduce((s, c) => s + c.revenue, 0);
   const totalProfit = campaigns.reduce((s, c) => s + c.profit, 0);
   const totalSales = campaigns.reduce((s, c) => s + c.approvedOrdersCount, 0);
+  const overallRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
 
   return (
     <AppLayout>
@@ -110,7 +100,9 @@ export default function Campaigns() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Campanhas</h1>
-            <p className="text-sm text-muted-foreground">Desempenho detalhado por campanha no Meta Ads.</p>
+            <p className="text-sm text-muted-foreground">
+              Todas as campanhas ordenadas por melhor desempenho.
+            </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading || isRefetching} className="self-start md:self-auto">
             <RefreshCw className={cn("h-4 w-4 mr-2", isRefetching && "animate-spin")} />
@@ -118,60 +110,47 @@ export default function Campaigns() {
           </Button>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col gap-3 md:flex-row">
-          <div className="flex gap-2 flex-wrap">
-            {DASHBOARDS.map((d) => (
-              <button
-                key={d.id}
-                onClick={() => setDashboardId(d.id)}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-medium border transition-colors",
-                  dashboardId === d.id
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background border-border text-muted-foreground hover:bg-accent"
-                )}
-              >
-                {d.name}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1.5 flex-wrap">
-            {PERIODS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
-                  period === p.value
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background border-border text-muted-foreground hover:bg-accent"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+        {/* Period Filter */}
+        <div className="flex gap-1.5 flex-wrap">
+          {PERIODS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
+                period === p.value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border text-muted-foreground hover:bg-accent"
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
 
         {/* Summary Cards */}
         {campaigns.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: "Gasto Total", value: totalSpend, format: "currency" as const },
-              { label: "Receita Total", value: totalRevenue, format: "currency" as const },
-              { label: "Lucro Total", value: totalProfit, format: "currency" as const, highlight: true },
-              { label: "Vendas Totais", value: totalSales, format: "number" as const },
+              { label: "Gasto Total", value: formatCurrency(totalSpend) },
+              { label: "Receita Total", value: formatCurrency(totalRevenue) },
+              {
+                label: "Lucro Total",
+                value: formatCurrency(totalProfit),
+                positive: totalProfit > 0,
+                highlight: true,
+              },
+              { label: "Vendas Totais", value: totalSales.toLocaleString("pt-BR") },
+              { label: "ROAS Geral", value: `${overallRoas.toFixed(2)}x` },
             ].map((card) => (
               <div key={card.label} className="border rounded-lg p-4 bg-card">
                 <p className="text-xs text-muted-foreground mb-1">{card.label}</p>
-                {card.highlight ? (
-                  <MetricCell value={card.value} format={card.format} highlight />
-                ) : (
-                  <p className="text-lg font-bold tabular-nums">
-                    {card.format === "currency" ? formatCurrency(card.value) : card.value.toLocaleString("pt-BR")}
-                  </p>
-                )}
+                <p className={cn(
+                  "text-lg font-bold tabular-nums",
+                  card.highlight && (card.positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")
+                )}>
+                  {card.value}
+                </p>
               </div>
             ))}
           </div>
@@ -180,9 +159,10 @@ export default function Campaigns() {
         {/* Table */}
         <div className="border rounded-lg bg-card overflow-hidden">
           {isLoading || isRefetching ? (
-            <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
-              <RefreshCw className="h-5 w-5 animate-spin" />
-              <span>Buscando campanhas da UTMify...</span>
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+              <RefreshCw className="h-6 w-6 animate-spin" />
+              <span className="text-sm">Buscando campanhas de todos os dashboards...</span>
+              <span className="text-xs opacity-60">Isso pode levar alguns segundos</span>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-destructive">
@@ -199,7 +179,8 @@ export default function Campaigns() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground w-[280px]">Campanha</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">#</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground w-[260px]">Campanha</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Gasto</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Receita</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Lucro</th>
@@ -207,51 +188,60 @@ export default function Campaigns() {
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">ROAS</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">Vendas</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">CPA</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Impressões</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Cliques</th>
                     <th className="text-right px-4 py-3 font-medium text-muted-foreground">CTR</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Impressões</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {campaigns.map((c) => (
-                    <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                  {campaigns.map((c, i) => (
+                    <tr key={`${c.dashboard}-${c.id}`} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-3 text-muted-foreground font-medium tabular-nums">{i + 1}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1 max-w-[280px]">
-                          <span className="font-medium truncate" title={c.name}>{c.name}</span>
-                          <StatusBadge status={c.effectiveStatus || c.status} />
+                        <div className="flex flex-col gap-1 max-w-[260px]">
+                          <span className="font-medium truncate leading-tight" title={c.name}>{c.name}</span>
+                          <div className="flex gap-1 flex-wrap">
+                            <DashboardBadge name={c.dashboard} />
+                            <StatusBadge status={c.effectiveStatus || c.status} />
+                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.spend} format="currency" />
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {formatCurrency(c.spend)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {formatCurrency(c.revenue)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.revenue} format="currency" />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.profit} format="currency" highlight />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={cn("font-semibold tabular-nums", c.roi > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500")}>
-                          {(c.roi * 100).toFixed(0)}%
+                        <span className={cn(
+                          "font-semibold tabular-nums flex items-center justify-end gap-1",
+                          c.profit > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"
+                        )}>
+                          {c.profit > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                          {formatCurrency(c.profit)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.roas} format="roas" />
+                        <span className={cn(
+                          "font-semibold tabular-nums",
+                          c.roi > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"
+                        )}>
+                          {(c.roi * 100).toFixed(0)}%
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.approvedOrdersCount} format="number" />
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {c.roas.toFixed(2)}x
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.cpa} format="currency" />
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {c.approvedOrdersCount}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.impressions} format="number" />
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {formatCurrency(c.cpa)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.clicks} format="number" />
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {c.ctr.toFixed(2)}%
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <MetricCell value={c.ctr} format="percent" />
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {c.impressions.toLocaleString("pt-BR")}
                       </td>
                     </tr>
                   ))}
@@ -263,7 +253,7 @@ export default function Campaigns() {
 
         {campaigns.length > 0 && (
           <p className="text-xs text-muted-foreground text-right">
-            {campaigns.length} campanha{campaigns.length !== 1 ? "s" : ""} · Dados em tempo real da UTMify
+            {campaigns.length} campanha{campaigns.length !== 1 ? "s" : ""} de todos os dashboards · Dados em tempo real da UTMify
           </p>
         )}
       </div>
