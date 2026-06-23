@@ -55,6 +55,13 @@ export default function Overview() {
           ) : data ? (
             <>
               <MetricCard
+                title="Gasto Total"
+                value={formatCurrency(data.totalExpenses)}
+                change={data.comparisonPrevious?.expensesChange}
+                icon={<TrendingDown className="h-4 w-4 text-destructive" />}
+                trend="negative"
+              />
+              <MetricCard
                 title="Receita Total"
                 value={formatCurrency(data.totalRevenue)}
                 change={data.comparisonPrevious?.revenueChange}
@@ -65,15 +72,8 @@ export default function Overview() {
                 title="Lucro Total"
                 value={formatCurrency(data.totalProfit)}
                 change={data.comparisonPrevious?.profitChange}
-                icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
-                trend="positive"
-              />
-              <MetricCard
-                title="Gasto Total"
-                value={formatCurrency(data.totalExpenses)}
-                change={data.comparisonPrevious?.expensesChange}
-                icon={<TrendingDown className="h-4 w-4 text-destructive" />}
-                trend="negative"
+                icon={<TrendingUp className={cn("h-4 w-4", data.totalProfit >= 0 ? "text-emerald-500" : "text-destructive")} />}
+                trend={data.totalProfit >= 0 ? "positive" : "negative"}
               />
               <MetricCard
                 title="ROI Geral"
@@ -93,6 +93,12 @@ export default function Overview() {
             <>
               <Card>
                 <CardHeader className="pb-2">
+                  <CardDescription>Gastos</CardDescription>
+                  <CardTitle className="text-2xl text-destructive">{formatCurrency(data.todayExpenses)}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
                   <CardDescription>Receita</CardDescription>
                   <CardTitle className="text-2xl">{formatCurrency(data.todayRevenue)}</CardTitle>
                 </CardHeader>
@@ -100,13 +106,9 @@ export default function Overview() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Lucro</CardDescription>
-                  <CardTitle className="text-2xl text-emerald-600 dark:text-emerald-400">{formatCurrency(data.todayProfit)}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Gastos</CardDescription>
-                  <CardTitle className="text-2xl text-destructive">{formatCurrency(data.todayExpenses)}</CardTitle>
+                  <CardTitle className={cn("text-2xl", data.todayProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                    {formatCurrency(data.todayProfit)}
+                  </CardTitle>
                 </CardHeader>
               </Card>
               <Card>

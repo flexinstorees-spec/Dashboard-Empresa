@@ -71,7 +71,7 @@ function DashboardBadge({ name }: { name: string }) {
 }
 
 export default function Campaigns() {
-  const [period, setPeriod] = useState("last30days");
+  const [period, setPeriod] = useState("today");
   // Ref to signal that the next queryFn call should bypass server cache
   const forceRef = useRef(false);
 

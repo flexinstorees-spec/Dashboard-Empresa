@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowRight, ShoppingBag } from "lucide-react";
 
 export default function Offers() {
-  const [period, setPeriod] = useState<GetOffersPeriod>(GetOffersPeriod.last30days);
+  const [period, setPeriod] = useState<GetOffersPeriod>(GetOffersPeriod.today);
   const [sortBy, setSortBy] = useState<GetOffersSortBy>(GetOffersSortBy.profit);
   
   const { data, isLoading } = useGetOffers(

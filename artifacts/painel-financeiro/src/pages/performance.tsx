@@ -8,7 +8,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { formatCurrency, formatDate } from "@/lib/format";
 
 export default function Performance() {
-  const [period, setPeriod] = useState<GetPerformancePeriod>(GetPerformancePeriod.last30days);
+  const [period, setPeriod] = useState<GetPerformancePeriod>(GetPerformancePeriod.today);
   
   // Cast required because GetPerformancePeriod doesn't perfectly overlap with GetOverviewPeriod types if they differ
   const { data, isLoading } = useGetPerformance(

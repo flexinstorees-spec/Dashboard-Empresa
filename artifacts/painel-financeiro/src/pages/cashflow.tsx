@@ -9,7 +9,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Wallet, TrendingUp, TrendingDown } from "lucide-react";
 
 export default function Cashflow() {
-  const [period, setPeriod] = useState<GetCashflowPeriod>(GetCashflowPeriod.last30days);
+  const [period, setPeriod] = useState<GetCashflowPeriod>(GetCashflowPeriod.today);
   
   const { data, isLoading } = useGetCashflow(
     { period },

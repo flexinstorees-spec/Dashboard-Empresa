@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 
 export default function OfferDetail() {
   const { id } = useParams<{ id: string }>();
-  const [period, setPeriod] = useState<FetchOfferPeriod>(FetchOfferPeriod.last30days);
+  const [period, setPeriod] = useState<FetchOfferPeriod>(FetchOfferPeriod.today);
   
   const { data: offer, isLoading: isLoadingOffer } = useFetchOffer(
     id || "",

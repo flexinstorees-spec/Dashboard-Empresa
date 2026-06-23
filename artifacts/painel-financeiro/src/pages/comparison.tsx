@@ -19,7 +19,7 @@ const COLORS = [
 ];
 
 export default function Comparison() {
-  const [period, setPeriod] = useState<GetComparisonPeriod>(GetComparisonPeriod.last30days);
+  const [period, setPeriod] = useState<GetComparisonPeriod>(GetComparisonPeriod.today);
   const [selectedOffers, setSelectedOffers] = useState<string[]>([]);
   
   // Use same period for fetching offers
