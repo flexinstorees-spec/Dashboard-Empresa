@@ -33,3 +33,8 @@ externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
+
+[mcp]
+  [mcp.mcpServers]
+    [mcp.mcpServers.utmify]
+      url = "https://mcp.utmify.com.br/mcp/?token=z9XDJN8aUm5N9lS9Rn4LaJ7yKZqQErpn&resources=gs,gm,gu,gwe,ga,gp,gwa,gr,gtf,gpc,gcs"
