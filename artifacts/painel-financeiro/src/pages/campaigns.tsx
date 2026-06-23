@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, RefreshCw, AlertCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, RefreshCw, AlertCircle, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -109,9 +109,14 @@ export default function Campaigns() {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Campanhas</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">Campanhas</h1>
+              <Badge variant="outline" className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400 font-medium">
+                Meta Ads
+              </Badge>
+            </div>
             <p className="text-sm text-muted-foreground">
-              Todas as campanhas ordenadas por melhor desempenho.
+              Campanhas Meta Ads ordenadas por melhor desempenho — dados em tempo real da UTMify.
             </p>
           </div>
           <Button
@@ -125,6 +130,16 @@ export default function Campaigns() {
             <RefreshCw className={cn("h-4 w-4 mr-2", isRefetching && "animate-spin")} />
             {isRefetching ? "Atualizando..." : "Atualizar"}
           </Button>
+        </div>
+
+        {/* Info note explaining the scope */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+          <Info className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <span className="font-medium">Escopo: apenas Meta Ads.</span>{" "}
+            Os valores aqui mostram somente campanhas do Meta (Facebook/Instagram). A{" "}
+            <span className="font-medium">Visão Geral</span> exibe o total do negócio incluindo outras fontes de tráfego (orgânico, Google, etc.) — por isso os números diferem. Ambos estão corretos.
+          </div>
         </div>
 
         {/* Period Filter */}
