@@ -5,14 +5,19 @@ import { GetCashflowQueryParams } from "@workspace/api-zod";
 const router = Router();
 
 router.get("/", async (req, res) => {
-  const parsed = GetCashflowQueryParams.safeParse(req.query);
-  const params = parsed.success ? parsed.data : {};
-  const period = params.period ?? "last30days";
-  const startDate = params.startDate ?? undefined;
-  const endDate = params.endDate ?? undefined;
+  try {
+    const parsed = GetCashflowQueryParams.safeParse(req.query);
+    const params = parsed.success ? parsed.data : {};
+    const period = params.period ?? "last30days";
+    const startDate = params.startDate as string | undefined;
+    const endDate = params.endDate as string | undefined;
 
-  const data = await getCashflowData(period, startDate as string | undefined, endDate as string | undefined);
-  res.json(data);
+    const data = await getCashflowData(period, startDate, endDate);
+    res.json(data);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erro ao buscar fluxo de caixa";
+    res.status(500).json({ error: msg });
+  }
 });
 
 export default router;

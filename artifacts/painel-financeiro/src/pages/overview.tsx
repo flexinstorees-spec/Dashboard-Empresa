@@ -1,7 +1,6 @@
 import { AppLayout } from "@/components/layout/app-layout";
 import { PeriodFilter } from "@/components/period-filter";
-import { useState } from "react";
-import { GetOverviewPeriod, useGetOverview, getGetOverviewQueryKey } from "@workspace/api-client-react";
+import { useGetOverview, getGetOverviewQueryKey } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercentage } from "@/lib/format";
 import { ArrowDownIcon, ArrowUpIcon, DollarSign, PieChart, TrendingDown, TrendingUp, AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePeriodFilter } from "@/hooks/use-period-filter";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "").replace(/\/painel-financeiro$/, "") + "/api";
 
@@ -30,17 +30,22 @@ const DASHBOARD_COLORS: Record<string, string> = {
 };
 
 export default function Overview() {
-  const [period, setPeriod] = useState<GetOverviewPeriod>(GetOverviewPeriod.today);
+  const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
 
   const { data, isLoading, isError, refetch } = useGetOverview(
-    { period },
-    { query: { queryKey: getGetOverviewQueryKey({ period }) } }
+    apiParams,
+    { query: { queryKey: [...getGetOverviewQueryKey(apiParams), ...queryKey] } }
   );
 
-  const { data: campaignsData, isLoading: isLoadingCampaigns } = useQuery({
-    queryKey: ["overview-campaigns", period],
+  const { data: campaignsData, isLoading: isLoadingCampaigns, isError: isCampaignsError } = useQuery({
+    queryKey: ["overview-campaigns", period, customRange?.startDate, customRange?.endDate],
     queryFn: async () => {
-      const res = await fetch(`${BASE}/campaigns?period=${period}`);
+      const params = new URLSearchParams({ period });
+      if (customRange) {
+        params.set("startDate", customRange.startDate);
+        params.set("endDate", customRange.endDate);
+      }
+      const res = await fetch(`${BASE}/campaigns?${params}`);
       if (!res.ok) throw new Error("Erro ao buscar campanhas");
       return res.json() as Promise<{ campaigns: Campaign[] }>;
     },
@@ -61,16 +66,18 @@ export default function Overview() {
               Acompanhe os principais indicadores do seu negócio.
             </p>
           </div>
-          <PeriodFilter value={period} onChange={setPeriod} />
+          <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
 
         {isError && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex items-center justify-between text-destructive">
             <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5" />
+              <AlertCircle className="h-5 w-5 shrink-0" />
               <p className="text-sm font-medium">Erro ao carregar dados.</p>
             </div>
-            <button onClick={() => refetch()} className="text-sm underline font-semibold">Tentar novamente</button>
+            <button onClick={() => refetch()} className="text-sm underline font-semibold shrink-0">
+              Tentar novamente
+            </button>
           </div>
         )}
 
@@ -126,7 +133,9 @@ export default function Overview() {
         <div>
           <h2 className="text-xl font-bold tracking-tight mb-4">
             Campanhas Meta Ads
-            <span className="ml-2 text-sm font-normal text-muted-foreground">da melhor para pior • {campaigns.length} ativa{campaigns.length !== 1 ? "s" : ""}</span>
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              da melhor para pior • {campaigns.length} ativa{campaigns.length !== 1 ? "s" : ""}
+            </span>
           </h2>
 
           <div className="border rounded-lg bg-card overflow-hidden">
@@ -134,6 +143,10 @@ export default function Overview() {
               <div className="flex items-center justify-center gap-3 py-12 text-muted-foreground">
                 <RefreshCw className="h-5 w-5 animate-spin" />
                 <span className="text-sm">Buscando campanhas da UTMify...</span>
+              </div>
+            ) : isCampaignsError ? (
+              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                Não foi possível carregar as campanhas.
               </div>
             ) : campaigns.length === 0 ? (
               <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
@@ -213,8 +226,8 @@ function MetricCard({
   icon: React.ReactNode;
   trend: "positive" | "negative" | "neutral";
 }) {
-  const isPositiveChange = change && change > 0;
-  const isNegativeChange = change && change < 0;
+  const isPositiveChange = change !== undefined && change > 0;
+  const isNegativeChange = change !== undefined && change < 0;
 
   return (
     <Card>

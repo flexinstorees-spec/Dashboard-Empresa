@@ -6,11 +6,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { usePeriodFilter } from "@/hooks/use-period-filter";
+import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Performance() {
   const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
 
-  const { data, isLoading } = useGetPerformance(
+  const { data, isLoading, isError, refetch } = useGetPerformance(
     apiParams,
     { query: { queryKey: [...getGetPerformanceQueryKey(apiParams), ...queryKey] } }
   );
@@ -27,6 +29,18 @@ export default function Performance() {
           </div>
           <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
+
+        {isError && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex items-center justify-between text-destructive">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">Erro ao carregar dados de desempenho.</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-destructive hover:text-destructive">
+              Tentar novamente
+            </Button>
+          </div>
+        )}
 
         <div className="grid gap-6">
           <Card>
@@ -55,25 +69,25 @@ export default function Performance() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(val) => formatDate(val)} 
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={(val) => formatDate(val)}
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                         dy={10}
                       />
-                      <YAxis 
-                        tickFormatter={(val) => `R$ ${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`} 
+                      <YAxis
+                        tickFormatter={(val) => `R$ ${Math.abs(val) >= 1000 ? (val / 1000).toFixed(0) + "k" : val}`}
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                         dx={-10}
                       />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px" }}
                         itemStyle={{ fontWeight: 500 }}
                         formatter={(value: number) => formatCurrency(value)}
                         labelFormatter={(label) => formatDate(label as string)}

@@ -1,15 +1,16 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  ShoppingBag, 
-  BarChart2, 
+import {
+  LayoutDashboard,
+  TrendingUp,
+  ShoppingBag,
+  BarChart2,
   Wallet,
   Settings,
   LogOut,
   Menu,
-  Megaphone
+  Megaphone,
+  GitCompareArrows
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
@@ -22,12 +23,12 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { href: "/", label: "Visão Geral", icon: LayoutDashboard },
-  { href: "/desempenho", label: "Desempenho", icon: TrendingUp },
-  { href: "/ofertas", label: "Ofertas", icon: ShoppingBag },
-  { href: "/campanhas", label: "Campanhas", icon: Megaphone },
-  { href: "/comparacao", label: "Comparação", icon: BarChart2 },
-  { href: "/fluxo-de-caixa", label: "Fluxo de Caixa", icon: Wallet },
+  { href: "/", label: "Visão Geral", shortLabel: "Geral", icon: LayoutDashboard },
+  { href: "/desempenho", label: "Desempenho", shortLabel: "Desempenho", icon: TrendingUp },
+  { href: "/ofertas", label: "Ofertas", shortLabel: "Ofertas", icon: ShoppingBag },
+  { href: "/campanhas", label: "Campanhas", shortLabel: "Campanhas", icon: Megaphone },
+  { href: "/comparacao", label: "Comparação", shortLabel: "Comparar", icon: GitCompareArrows },
+  { href: "/fluxo-de-caixa", label: "Fluxo de Caixa", shortLabel: "Caixa", icon: Wallet },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -46,13 +47,13 @@ export function AppLayout({ children }: AppLayoutProps) {
             Painel Financeiro
           </div>
         </div>
-        
+
         <div className="flex-1 overflow-auto py-4">
           <nav className="grid gap-1 px-4">
             {navItems.map((item) => {
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               const Icon = item.icon;
-              
+
               return (
                 <Link key={item.href} href={item.href}>
                   <div
@@ -61,7 +62,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                       isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground"
                     )}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4 shrink-0" />
                     {item.label}
                   </div>
                 </Link>
@@ -69,15 +70,15 @@ export function AppLayout({ children }: AppLayoutProps) {
             })}
           </nav>
         </div>
-        
+
         <div className="border-t p-4">
           <div className="flex flex-col gap-2">
             <SyncStatusBadge className="w-full justify-start" />
-            
+
             <div className="flex items-center gap-2 mt-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 title="Alternar tema"
                 className="w-full justify-start gap-3 px-3"
@@ -87,14 +88,14 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <span className="text-sm font-medium">Tema</span>
               </Button>
             </div>
-            
+
             <Link href="/settings">
               <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent text-muted-foreground hover:text-sidebar-accent-foreground cursor-pointer mt-1">
                 <Settings className="h-4 w-4" />
                 Configurações
               </div>
             </Link>
-            
+
             <Link href="/login">
               <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-destructive/10 text-muted-foreground hover:text-destructive cursor-pointer">
                 <LogOut className="h-4 w-4" />
@@ -109,9 +110,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden">
+            <Button variant="ghost" size="icon" className="md:hidden shrink-0">
               <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle menu</span>
+              <span className="sr-only">Abrir menu</span>
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[80vw] sm:w-[350px] flex flex-col p-0">
@@ -128,7 +129,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 {navItems.map((item) => {
                   const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                   const Icon = item.icon;
-                  
+
                   return (
                     <Link key={item.href} href={item.href}>
                       <div
@@ -137,7 +138,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                           isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"
                         )}
                       >
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4 shrink-0" />
                         {item.label}
                       </div>
                     </Link>
@@ -153,8 +154,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                   Configurações
                 </div>
               </Link>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 className="w-full justify-start gap-3 px-3 text-muted-foreground"
               >
@@ -165,7 +166,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           </SheetContent>
         </Sheet>
-        <div className="flex items-center gap-2 font-bold flex-1">
+        <div className="flex items-center gap-2 font-bold flex-1 min-w-0 truncate">
           Painel Financeiro
         </div>
         <SyncStatusBadge showText={false} />
@@ -177,21 +178,21 @@ export function AppLayout({ children }: AppLayoutProps) {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 z-40 flex h-16 w-full items-center justify-around border-t bg-background/95 backdrop-blur px-2 md:hidden">
+      <div className="fixed bottom-0 z-40 flex h-16 w-full items-center justify-around border-t bg-background/95 backdrop-blur px-1 md:hidden">
         {navItems.map((item) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           const Icon = item.icon;
-          
+
           return (
-            <Link key={item.href} href={item.href} className="flex flex-col items-center justify-center w-full h-full">
+            <Link key={item.href} href={item.href} className="flex-1">
               <div
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 w-full h-full",
+                  "flex flex-col items-center justify-center gap-0.5 h-14 w-full",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <Icon className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-none">{item.label}</span>
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="text-[9px] font-medium leading-none text-center">{item.shortLabel}</span>
               </div>
             </Link>
           );

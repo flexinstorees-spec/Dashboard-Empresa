@@ -7,9 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatPercentage } from "@/lib/format";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { usePeriodFilter } from "@/hooks/use-period-filter";
+import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -22,21 +23,21 @@ const COLORS = [
 export default function Comparison() {
   const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
   const [selectedOffers, setSelectedOffers] = useState<string[]>([]);
-  
-  const { data: availableOffers, isLoading: isLoadingOffers } = useGetOffers(apiParams);
+
+  const { data: availableOffers, isLoading: isLoadingOffers, isError: isErrorOffers } = useGetOffers(apiParams);
 
   const offerIds = selectedOffers.join(",");
   const compParams = { ...apiParams, offerIds };
-  const { data: comparisonData, isLoading: isLoadingComparison } = useGetComparison(
+  const { data: comparisonData, isLoading: isLoadingComparison, isError: isErrorComparison, refetch } = useGetComparison(
     compParams,
     { query: { queryKey: [...getGetComparisonQueryKey(compParams), ...queryKey], enabled: selectedOffers.length > 0 } }
   );
 
   const toggleOffer = (id: string) => {
-    setSelectedOffers(prev => 
-      prev.includes(id) 
+    setSelectedOffers(prev =>
+      prev.includes(id)
         ? prev.filter(o => o !== id)
-        : [...prev, id].slice(-5) // Max 5 offers for comparison
+        : [...prev, id].slice(-5)
     );
   };
 
@@ -53,16 +54,26 @@ export default function Comparison() {
           <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
 
+        {(isErrorOffers || isErrorComparison) && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex items-center justify-between text-destructive">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">Erro ao carregar dados de comparação.</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-destructive hover:text-destructive">
+              Tentar novamente
+            </Button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <Card className="lg:col-span-1 h-[fit-content]">
+          <Card className="lg:col-span-1 h-fit">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Selecionar Ofertas</CardTitle>
-              <CardDescription>
-                {selectedOffers.length}/5 selecionadas
-              </CardDescription>
+              <CardDescription>{selectedOffers.length}/5 selecionadas</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[400px] px-4 pb-4">
+              <ScrollArea className="h-[300px] lg:h-[400px] px-4 pb-4">
                 {isLoadingOffers ? (
                   <div className="space-y-3">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -75,11 +86,11 @@ export default function Comparison() {
                 ) : availableOffers?.length ? (
                   <div className="space-y-1">
                     {availableOffers.map((offer) => (
-                      <label 
-                        key={offer.id} 
+                      <label
+                        key={offer.id}
                         className="flex items-start space-x-3 p-2 rounded hover:bg-muted/50 cursor-pointer transition-colors"
                       >
-                        <Checkbox 
+                        <Checkbox
                           checked={selectedOffers.includes(offer.id)}
                           onCheckedChange={() => toggleOffer(offer.id)}
                           disabled={!selectedOffers.includes(offer.id) && selectedOffers.length >= 5}
@@ -101,13 +112,13 @@ export default function Comparison() {
 
           <div className="lg:col-span-3 space-y-6">
             {selectedOffers.length === 0 ? (
-              <Card className="h-[500px] flex flex-col items-center justify-center text-center p-8 bg-muted/20 border-dashed">
+              <Card className="h-[400px] flex flex-col items-center justify-center text-center p-8 bg-muted/20 border-dashed">
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
                   <BarChart className="h-6 w-6 text-muted-foreground opacity-50" />
                 </div>
                 <h3 className="text-lg font-medium">Selecione ofertas para comparar</h3>
                 <p className="text-sm text-muted-foreground max-w-sm mt-1">
-                  Escolha pelo menos uma oferta na lista ao lado para visualizar os gráficos de comparação de receita, lucro e ROI.
+                  Escolha pelo menos uma oferta na lista ao lado para visualizar os gráficos de comparação.
                 </p>
               </Card>
             ) : isLoadingComparison ? (
@@ -123,36 +134,36 @@ export default function Comparison() {
                     <CardTitle>Receita e Lucro</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[350px] w-full">
+                    <div className="h-[300px] sm:h-[350px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={comparisonData.offers}
-                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          margin={{ top: 20, right: 20, left: 10, bottom: 5 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                          <XAxis 
-                            dataKey="name" 
+                          <XAxis
+                            dataKey="name"
                             stroke="hsl(var(--muted-foreground))"
-                            fontSize={12}
+                            fontSize={11}
                             tickLine={false}
                             axisLine={false}
                             dy={10}
-                            tickFormatter={(value) => value.length > 15 ? `${value.substring(0, 15)}...` : value}
+                            tickFormatter={(value) => value.length > 12 ? `${value.substring(0, 12)}…` : value}
                           />
-                          <YAxis 
+                          <YAxis
                             stroke="hsl(var(--muted-foreground))"
-                            fontSize={12}
+                            fontSize={11}
                             tickLine={false}
                             axisLine={false}
                             dx={-10}
-                            tickFormatter={(val) => `R$ ${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`}
+                            tickFormatter={(val) => `R$ ${Math.abs(val) >= 1000 ? (val / 1000).toFixed(0) + "k" : val}`}
                           />
                           <Tooltip
-                            contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                            contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px" }}
                             formatter={(value: number) => formatCurrency(value)}
-                            cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                            cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                           />
-                          <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                          <Legend wrapperStyle={{ paddingTop: "20px" }} />
                           <Bar dataKey="revenue" name="Receita" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                           <Bar dataKey="profit" name="Lucro" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
                         </BarChart>
@@ -161,7 +172,7 @@ export default function Comparison() {
                   </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {comparisonData.offers.map((offer, idx) => (
                     <Card key={offer.id} className="overflow-hidden relative">
                       <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />

@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import { usePeriodFilter } from "@/hooks/use-period-filter";
+import { Button } from "@/components/ui/button";
 
 export default function Cashflow() {
   const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
 
-  const { data, isLoading } = useGetCashflow(
+  const { data, isLoading, isError, refetch } = useGetCashflow(
     apiParams,
     { query: { queryKey: [...getGetCashflowQueryKey(apiParams), ...queryKey] } }
   );
@@ -28,6 +29,18 @@ export default function Cashflow() {
           </div>
           <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
         </div>
+
+        {isError && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex items-center justify-between text-destructive">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">Erro ao carregar fluxo de caixa.</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-destructive hover:text-destructive">
+              Tentar novamente
+            </Button>
+          </div>
+        )}
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
           {isLoading ? (
@@ -83,15 +96,13 @@ export default function Cashflow() {
         <Card>
           <CardHeader>
             <CardTitle>Evolução do Caixa Acumulado</CardTitle>
-            <CardDescription>
-              Valores cumulativos dia a dia
-            </CardDescription>
+            <CardDescription>Valores cumulativos dia a dia</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-[450px] w-full" />
+              <Skeleton className="h-[350px] sm:h-[450px] w-full" />
             ) : data && data.entries.length > 0 ? (
-              <div className="h-[450px] w-full">
+              <div className="h-[350px] sm:h-[450px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={data.entries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
@@ -105,25 +116,25 @@ export default function Cashflow() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={(val) => formatDate(val)} 
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(val) => formatDate(val)}
                       stroke="hsl(var(--muted-foreground))"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       dy={10}
                     />
-                    <YAxis 
-                      tickFormatter={(val) => `R$ ${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`} 
+                    <YAxis
+                      tickFormatter={(val) => `R$ ${Math.abs(val) >= 1000 ? (val / 1000).toFixed(0) + "k" : val}`}
                       stroke="hsl(var(--muted-foreground))"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       dx={-10}
                     />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px" }}
                       itemStyle={{ fontWeight: 500 }}
                       formatter={(value: number) => formatCurrency(value)}
                       labelFormatter={(label) => formatDate(label as string)}
@@ -134,7 +145,7 @@ export default function Cashflow() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="flex h-[450px] items-center justify-center border-2 border-dashed rounded-lg">
+              <div className="flex h-[350px] sm:h-[450px] items-center justify-center border-2 border-dashed rounded-lg">
                 <p className="text-muted-foreground">Nenhum dado disponível.</p>
               </div>
             )}

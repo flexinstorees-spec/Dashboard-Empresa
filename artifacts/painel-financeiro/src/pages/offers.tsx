@@ -7,15 +7,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatPercentage } from "@/lib/format";
 import { Link } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ShoppingBag } from "lucide-react";
+import { ArrowRight, ShoppingBag, AlertCircle } from "lucide-react";
 import { usePeriodFilter } from "@/hooks/use-period-filter";
+import { Button } from "@/components/ui/button";
 
 export default function Offers() {
   const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
   const [sortBy, setSortBy] = useState<GetOffersSortBy>(GetOffersSortBy.profit);
-  
+
   const params = { ...apiParams, sortBy };
-  const { data, isLoading } = useGetOffers(
+  const { data, isLoading, isError, refetch } = useGetOffers(
     params,
     { query: { queryKey: [...getGetOffersQueryKey(params), ...queryKey] } }
   );
@@ -30,10 +31,10 @@ export default function Offers() {
               Desempenho detalhado por produto/oferta.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
             <PeriodFilter value={period} onChange={handleChange} customRange={customRange} />
             <Select value={sortBy} onValueChange={(val) => setSortBy(val as GetOffersSortBy)}>
-              <SelectTrigger className="w-[160px] h-9">
+              <SelectTrigger className="w-full sm:w-[160px] h-9">
                 <SelectValue placeholder="Ordenar por" />
               </SelectTrigger>
               <SelectContent>
@@ -45,6 +46,18 @@ export default function Offers() {
             </Select>
           </div>
         </div>
+
+        {isError && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 flex items-center justify-between text-destructive">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">Erro ao carregar ofertas.</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-destructive hover:text-destructive">
+              Tentar novamente
+            </Button>
+          </div>
+        )}
 
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {isLoading ? (
@@ -64,13 +77,13 @@ export default function Offers() {
               <Link key={offer.id} href={`/ofertas/${offer.id}`}>
                 <Card className="hover:border-primary/50 transition-colors cursor-pointer group h-full flex flex-col">
                   <CardHeader className="pb-2 flex-row items-start justify-between space-y-0">
-                    <div>
-                      <CardTitle className="text-base group-hover:text-primary transition-colors">{offer.name}</CardTitle>
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-base group-hover:text-primary transition-colors truncate">{offer.name}</CardTitle>
                       <CardDescription className="flex items-center gap-1 mt-1">
-                        <ShoppingBag className="h-3 w-3" /> {offer.sales} vendas
+                        <ShoppingBag className="h-3 w-3 shrink-0" /> {offer.sales} vendas
                       </CardDescription>
                     </div>
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
                       <ArrowRight className="h-4 w-4" />
                     </div>
                   </CardHeader>

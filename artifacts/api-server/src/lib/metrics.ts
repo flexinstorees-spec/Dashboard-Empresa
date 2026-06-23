@@ -160,9 +160,9 @@ export async function getOverviewMetrics(period: string, startDate?: string, end
   };
 }
 
-export async function getPerformanceData(period: string, startDate?: string, endDate?: string) {
+export async function getPerformanceData(period: string, startDate?: string, endDate?: string, offerId = "ALL") {
   const range = getDateRange(period, startDate, endDate);
-  const rows = await getDailyRows("ALL", range);
+  const rows = await getDailyRows(offerId, range);
   const count = rows.length || 1;
 
   return {

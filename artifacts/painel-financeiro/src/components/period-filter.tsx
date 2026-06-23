@@ -63,36 +63,40 @@ export function PeriodFilter({ value, onChange, customRange, className }: Period
       : "Personalizado";
 
   return (
-    <div className={cn("flex items-center gap-2 flex-wrap", className)}>
-      <div className="inline-flex items-center rounded-lg bg-muted p-1 overflow-x-auto">
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.value}
-            onClick={() => handlePreset(preset.value)}
-            className={cn(
-              "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none",
-              value === preset.value
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
-            )}
-          >
-            {preset.label}
-          </button>
-        ))}
+    <div className={cn("flex items-center gap-2 w-full sm:w-auto", className)}>
+      {/* Horizontally scrollable preset tabs */}
+      <div className="flex-1 sm:flex-none min-w-0 overflow-x-auto rounded-lg scrollbar-none">
+        <div className="inline-flex items-center rounded-lg bg-muted p-1 min-w-max">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              onClick={() => handlePreset(preset.value)}
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs sm:text-sm font-medium transition-all focus-visible:outline-none",
+                value === preset.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             className={cn(
-              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium border transition-all",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs sm:text-sm font-medium border transition-all shrink-0",
               value === "custom"
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
             <CalendarIcon className="h-3.5 w-3.5" />
-            {customLabel}
+            <span className="hidden sm:inline">{customLabel}</span>
+            <span className="sm:hidden">{value === "custom" ? customLabel : "Período"}</span>
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-3" align="end">
