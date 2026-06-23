@@ -102,14 +102,14 @@ export default function Overview() {
                 title="Gasto Total"
                 value={formatCurrency(data.totalExpenses)}
                 change={data.comparisonPrevious?.expensesChange}
-                icon={<TrendingDown className="h-4 w-4 text-destructive" />}
-                trend="negative"
+                icon={<TrendingDown className="h-4 w-4 text-muted-foreground" />}
+                trend="neutral"
               />
               <MetricCard
                 title="Receita Total"
                 value={formatCurrency(data.totalRevenue)}
                 change={data.comparisonPrevious?.revenueChange}
-                icon={<DollarSign className="h-4 w-4 text-primary" />}
+                icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
                 trend="neutral"
               />
               <MetricCard
@@ -118,12 +118,13 @@ export default function Overview() {
                 change={data.comparisonPrevious?.profitChange}
                 icon={<TrendingUp className={cn("h-4 w-4", data.totalProfit >= 0 ? "text-emerald-500" : "text-destructive")} />}
                 trend={data.totalProfit >= 0 ? "positive" : "negative"}
+                colorValue
               />
               <MetricCard
                 title="ROI Geral"
                 value={formatPercentage(data.roi)}
-                icon={<PieChart className="h-4 w-4 text-blue-500" />}
-                trend={data.roi > 0 ? "positive" : "negative"}
+                icon={<PieChart className="h-4 w-4 text-muted-foreground" />}
+                trend="neutral"
               />
             </>
           ) : null}
@@ -182,7 +183,7 @@ export default function Overview() {
                             </Badge>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-destructive font-medium">
+                        <td className="px-4 py-3 text-right tabular-nums">
                           {formatCurrency(c.spend)}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
@@ -191,10 +192,10 @@ export default function Overview() {
                         <td className={cn("px-4 py-3 text-right tabular-nums font-semibold", c.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
                           {formatCurrency(c.profit)}
                         </td>
-                        <td className={cn("px-4 py-3 text-right tabular-nums font-medium", c.roi >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                        <td className="px-4 py-3 text-right tabular-nums">
                           {c.roi.toFixed(1)}%
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                        <td className="px-4 py-3 text-right tabular-nums">
                           {c.roas.toFixed(2)}x
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
@@ -219,12 +220,14 @@ function MetricCard({
   change,
   icon,
   trend,
+  colorValue,
 }: {
   title: string;
   value: string;
   change?: number;
   icon: React.ReactNode;
   trend: "positive" | "negative" | "neutral";
+  colorValue?: boolean;
 }) {
   const isPositiveChange = change !== undefined && change > 0;
   const isNegativeChange = change !== undefined && change < 0;
@@ -235,14 +238,20 @@ function MetricCard({
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <div className={cn(
           "h-8 w-8 rounded-full flex items-center justify-center bg-muted/50",
-          trend === "positive" && "bg-emerald-500/10",
-          trend === "negative" && "bg-destructive/10",
+          colorValue && trend === "positive" && "bg-emerald-500/10",
+          colorValue && trend === "negative" && "bg-destructive/10",
         )}>
           {icon}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className={cn(
+          "text-2xl font-bold",
+          colorValue && trend === "positive" && "text-emerald-600 dark:text-emerald-400",
+          colorValue && trend === "negative" && "text-destructive",
+        )}>
+          {value}
+        </div>
         {change !== undefined && (
           <p className="text-xs mt-1 flex items-center gap-1">
             <span

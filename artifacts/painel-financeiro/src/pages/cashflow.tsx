@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Wallet, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, AlertCircle, ArrowLeftRight } from "lucide-react";
 import { usePeriodFilter } from "@/hooks/use-period-filter";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function Cashflow() {
   const { period, customRange, handleChange, apiParams, queryKey } = usePeriodFilter("today");
@@ -42,9 +43,9 @@ export default function Cashflow() {
           </div>
         )}
 
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           {isLoading ? (
-            Array.from({ length: 3 }).map((_, i) => (
+            Array.from({ length: 4 }).map((_, i) => (
               <Card key={i}>
                 <CardHeader className="pb-2">
                   <Skeleton className="h-4 w-1/2" />
@@ -58,20 +59,34 @@ export default function Cashflow() {
             <>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Acumulado (Lucro)</CardTitle>
-                  <div className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                    <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Lucro do Período</CardTitle>
+                  <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", data.totalProfit >= 0 ? "bg-emerald-500/10" : "bg-destructive/10")}>
+                    <Wallet className={cn("h-4 w-4", data.totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")} />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(data.totalProfit)}</div>
+                  <div className={cn("text-2xl font-bold", data.totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                    {formatCurrency(data.totalProfit)}
+                  </div>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Entradas Acumuladas</CardTitle>
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <TrendingUp className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Movimentado</CardTitle>
+                  <div className="h-8 w-8 rounded-full bg-muted/50 flex items-center justify-center">
+                    <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrency(data.totalRevenue + data.totalExpenses)}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Entradas + Saídas</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Entradas</CardTitle>
+                  <div className="h-8 w-8 rounded-full bg-muted/50 flex items-center justify-center">
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -80,13 +95,13 @@ export default function Cashflow() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Saídas Acumuladas</CardTitle>
-                  <div className="h-8 w-8 rounded-full bg-destructive/10 flex items-center justify-center">
-                    <TrendingDown className="h-4 w-4 text-destructive" />
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Saídas</CardTitle>
+                  <div className="h-8 w-8 rounded-full bg-muted/50 flex items-center justify-center">
+                    <TrendingDown className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-destructive">{formatCurrency(data.totalExpenses)}</div>
+                  <div className="text-2xl font-bold">{formatCurrency(data.totalExpenses)}</div>
                 </CardContent>
               </Card>
             </>
