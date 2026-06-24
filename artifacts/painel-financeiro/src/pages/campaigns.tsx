@@ -7,7 +7,7 @@ import { TrendingUp, TrendingDown, RefreshCw, AlertCircle, Info } from "lucide-r
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "").replace(/\/painel-financeiro$/, "") + "/api";
+import { API_BASE as BASE } from "@/lib/api";
 
 const PERIODS = [
   { value: "today", label: "Hoje" },

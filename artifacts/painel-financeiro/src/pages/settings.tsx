@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 
-const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "").replace(/^\/painel-financeiro/, "") + "/api";
+import { API_BASE } from "@/lib/api";
 
 interface SettingsData {
   utmify_token?: string;

@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import NotFound from "@/pages/not-found";
-
 import Overview from "@/pages/overview";
 import Performance from "@/pages/performance";
 import Offers from "@/pages/offers";
@@ -14,6 +13,15 @@ import Cashflow from "@/pages/cashflow";
 import Login from "@/pages/login";
 import Settings from "@/pages/settings";
 import Campaigns from "@/pages/campaigns";
+import { setBaseUrl } from "@workspace/api-client-react";
+import { API_ROOT_URL } from "@/lib/api";
+
+// Only configure setBaseUrl for external deployments (Netlify → Railway/Render).
+// The generated client already uses /api/* paths, so setBaseUrl receives the
+// root URL only (no /api suffix). On Replit, relative paths work automatically.
+if (API_ROOT_URL) {
+  setBaseUrl(API_ROOT_URL);
+}
 
 const queryClient = new QueryClient();
 

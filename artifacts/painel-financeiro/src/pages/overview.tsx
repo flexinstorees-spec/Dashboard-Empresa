@@ -10,7 +10,7 @@ import { ArrowDownIcon, ArrowUpIcon, DollarSign, PieChart, TrendingDown, Trendin
 import { cn } from "@/lib/utils";
 import { usePeriodFilter } from "@/hooks/use-period-filter";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "").replace(/\/painel-financeiro$/, "") + "/api";
+import { API_BASE as BASE } from "@/lib/api";
 
 interface Campaign {
   id: string;
